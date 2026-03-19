@@ -1,0 +1,100 @@
+import multer from "multer";
+import path from "path";
+import { Request, Response, NextFunction } from "express";
+import AppError from "../utils/appError";
+
+// Set storage for temporary files
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/"); // Temporary directory
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(
+      null,
+      file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname),
+    );
+  },
+});
+
+// File filter
+const fileFilter = (
+  req: any,
+  file: Express.Multer.File,
+  cb: multer.FileFilterCallback,
+) => {
+  // Allowed mime types
+  const allowedMimes = [
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "image/svg+xml",
+    "video/mp4",
+    "video/mpeg",
+    "application/pdf",
+  ];
+
+  if (allowedMimes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error(`Invalid file type. Allowed: ${allowedMimes.join(", ")}`));
+  }
+};
+
+// Create multer instance
+export const upload = multer({
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit
+  },
+});
+
+/**
+ * Middleware to handle single file upload
+ * @param fieldName - Form field name for the file
+ */
+export const uploadSingle = (fieldName: string) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const singleUpload = upload.single(fieldName);
+
+    singleUpload(req as any, res as any, (err: any) => {
+      if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return next(new AppError("File size too large. Max 50MB", 400));
+        }
+        return next(new AppError(err.message, 400));
+      } else if (err) {
+        return next(new AppError(err.message, 400));
+      }
+      next();
+    });
+  };
+};
+
+/**
+ * Middleware to handle multiple file uploads
+ * @param fieldName - Form field name for files
+ * @param maxCount - Maximum number of files to upload
+ */
+export const uploadMultiple = (fieldName: string, maxCount: number = 5) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const multipleUpload = upload.array(fieldName, maxCount);
+
+    multipleUpload(req as any, res as any, (err: any) => {
+      if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return next(new AppError("File size too large. Max 50MB", 400));
+        }
+        if (err.code === "LIMIT_FILE_COUNT") {
+          return next(new AppError(`Max ${maxCount} files allowed`, 400));
+        }
+        return next(new AppError(err.message, 400));
+      } else if (err) {
+        return next(new AppError(err.message, 400));
+      }
+      next();
+    });
+  };
+};
