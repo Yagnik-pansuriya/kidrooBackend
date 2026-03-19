@@ -4,3 +4,8 @@ npm-debug.log
 dist
 uploads/
 .DS_Store
+
+# Logs & error files
+error.log
+*.log
+typescript-errors.txt
