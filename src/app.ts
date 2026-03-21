@@ -11,6 +11,7 @@ import { limiter } from "./middlewares/rateLimiter";
 import authRoutes from "./routes/authRoutes";
 import uploadRoutes from "./routes/uploadRoutes";
 import swaggerRoutes from "./routes/swaggerRoutes";
+import indexRoutes from "./routes/index";
 
 const app = express();
 
@@ -43,11 +44,16 @@ app.use(
 );
 
 // CORS: Restrict origins to trusted domains only
-const allowedOrigins = (
-  process.env.ALLOWED_ORIGINS || "http://localhost:3000"
-)
-  .split(",")
-  .map((origin) => origin.trim());
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",")
+  : [
+      "http://localhost:3000",
+      "http://localhost:5000",
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+      "http://127.0.0.1:3000",
+      "http://127.0.0.1:5000",
+    ];
 
 app.use(
   cors({
@@ -77,7 +83,6 @@ app.use(
 
 app.use(hpp());
 
-// Custom NoSQL injection prevention for Express 5.x (mongoSanitize causes issues with read-only query)
 app.use((req, res, next) => {
   const sanitizeValue = (value: any): any => {
     if (typeof value === "string") {
@@ -106,10 +111,8 @@ app.use(xssFilter());
 
 app.use(compression());
 
-// Cookie parser middleware
 app.use(cookieParser());
 
-// Rate limiting
 app.use(limiter);
 
 app.use(
@@ -137,11 +140,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// Body parser with strict limit
 app.use(
   express.json({
     limit: "10kb",
-    strict: true, // Only parse valid JSON
+    strict: true, 
   }),
 );
 app.use(
@@ -163,14 +165,10 @@ app.get("/", (req, res) => {
   });
 });
 
-// API Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/upload", uploadRoutes);
+app.use("/api", indexRoutes);
 
-// API Documentation
 app.use("/docs", swaggerRoutes);
 
-// 404 Handler
 app.use((req, res) => {
   res.status(404).json({
     message: "Route not found",

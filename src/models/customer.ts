@@ -1,6 +1,30 @@
 import mongoose from "mongoose";
 
-const customerSchema = new mongoose.Schema({
+interface ICustomer extends mongoose.Document {
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+  avtar?: string;
+  address: {
+    houseNo?: string;
+    street?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    country?: string;
+  };
+  orderHistory: {
+    orderId: mongoose.Schema.Types.ObjectId;
+    orderDate: Date;
+  }[];
+  whishList: {
+    productId: mongoose.Schema.Types.ObjectId;
+    addedDate: Date;
+  }[];
+}
+
+const customerSchema = new mongoose.Schema<ICustomer>({
   name: {
     type: String,
     required: true,
@@ -67,8 +91,8 @@ const customerSchema = new mongoose.Schema({
       },
     },
   ],
-});
+}, { timestamps: true });
 
-// const User = mongoose.model<IUser>("User", userSchema);
+const Customer = mongoose.model<ICustomer>("Customer", customerSchema);
 
-// export default User;
+export default Customer;

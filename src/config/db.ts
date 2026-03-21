@@ -77,7 +77,6 @@ export const gracefulShutdown = async () => {
     cached.conn = null;
     cached.promise = null;
     console.log("MongoDB connection closed due to app termination");
-    process.exit(0);
   } catch (error) {
     console.error("Error closing MongoDB connection", error);
   }
