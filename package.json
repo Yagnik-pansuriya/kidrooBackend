@@ -9,7 +9,7 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "node dist/index.ts",
-    "seed": "ts-node scripts/seedAdmin.ts",
+    "seed:admin": "ts-node scripts/seedAdmin.ts",
     "seed:data": "ts-node scripts/seedData.ts"
   },
   "devDependencies": {
@@ -54,6 +54,7 @@
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^9.0.1",
-    "xss-clean": "^0.1.4"
+    "xss-clean": "^0.1.4",
+    "zod": "^4.3.6"
   }
 }
