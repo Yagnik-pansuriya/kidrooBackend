@@ -24,47 +24,51 @@ const extractPublicId = (url: string) => {
  * Get All Categories
  * GET /api/categories
  */
-export const getAllCategories = async (req: Request, res: Response) => {
-  const cacheKey = "categories";
+export const getAllCategories = asyncHandler(
+  async (req: Request, res: Response) => {
+    const cacheKey = "categories";
 
-  const cachedCategories = await CacheService.get(cacheKey);
+    const cachedCategories = await CacheService.get(cacheKey);
 
-  if (cachedCategories) {
-    return sendSuccessResponse(res, 200, "Categories fetched successfully", cachedCategories);
+    if (cachedCategories) {
+      return sendSuccessResponse(res, 200, "Categories fetched successfully", cachedCategories);
+    }
+
+    const categories = await categoryService.getAllCategories();
+
+    await CacheService.set(cacheKey, categories);
+
+    return sendSuccessResponse(res, 200, "Categories fetched successfully", categories);
   }
+);
 
-  const categories = await categoryService.getAllCategories();
+export const getCategoryById = asyncHandler(
+  async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    
+    if (!mongoose.isValidObjectId(id)) {
+      return sendErrorResponse(res, 400, "Invalid category ID format");
+    }
 
-  await CacheService.set(cacheKey, categories);
+    const cacheKey = `category:${id}`;
 
-  return sendSuccessResponse(res, 200, "Categories fetched successfully", categories);
-}
+    const cachedCategory = await CacheService.get(cacheKey);
 
-export const getCategoryById = async (req: Request, res: Response) => {
-  const id = req.params.id as string;
-  
-  if (!mongoose.isValidObjectId(id)) {
-    return sendErrorResponse(res, 400, "Invalid category ID format");
+    if (cachedCategory) {
+      return sendSuccessResponse(res, 200, "Category fetched successfully", cachedCategory);
+    }
+
+    const category = await categoryService.getCategoryById(id);
+    
+    if(!category) {
+      return sendErrorResponse(res, 404, "Category not found");
+    }
+
+    await CacheService.set(cacheKey, category);
+
+    return sendSuccessResponse(res, 200, "Category fetched successfully", category);
   }
-
-  const cacheKey = `category:${id}`;
-
-  const cachedCategory = await CacheService.get(cacheKey);
-
-  if (cachedCategory) {
-    return sendSuccessResponse(res, 200, "Category fetched successfully", cachedCategory);
-  }
-
-  const category = await categoryService.getCategoryById(id);
-  
-  if(!category) {
-    return sendErrorResponse(res, 404, "Category not found");
-  }
-
-  await CacheService.set(cacheKey, category);
-
-  return sendSuccessResponse(res, 200, "Category fetched successfully", category);
-}
+);
 
 /**
  * Create a new category

@@ -4,7 +4,7 @@ import fs from "fs";
 import { Request, Response, NextFunction } from "express";
 import AppError from "../utils/appError";
 
-const uploadDir = "uploads/";
+const uploadDir = "/tmp/uploads/";
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }

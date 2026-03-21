@@ -25,47 +25,51 @@ const extractPublicId = (url: string) => {
  * Get All Products
  * GET /api/auth/products
  */
-export const getAllProducts = async (req: Request, res: Response) => {
-  const cacheKey = "products";
+export const getAllProducts = asyncHandler(
+  async (req: Request, res: Response) => {
+    const cacheKey = "products";
 
-  const cachedProducts = await CacheService.get(cacheKey)
+    const cachedProducts = await CacheService.get(cacheKey)
 
-  if (cachedProducts) {
-    return sendSuccessResponse(res, 200, "product fetched SuccessFully", cachedProducts);
+    if (cachedProducts) {
+      return sendSuccessResponse(res, 200, "product fetched SuccessFully", cachedProducts);
+    }
+
+    const products = await productService.getAllProducts()
+
+    await CacheService.set(cacheKey, products)
+
+    return sendSuccessResponse(res, 200, "product fetched SuccessFully", products);
   }
+);
 
-  const products = await productService.getAllProducts()
+export const getProductById = asyncHandler(
+  async (req: Request, res: Response) => {
 
-  await CacheService.set(cacheKey, products)
+    const id = req.params.id as string;
+    
+    if (!mongoose.isValidObjectId(id)) {
+      return sendErrorResponse(res, 400, "Invalid product ID format");
+    }
 
-  return sendSuccessResponse(res, 200, "product fetched SuccessFully", products);
-}
+    const cacheKey = `product:${id}`
 
-export const getProductById = async (req: Request, res: Response) => {
+    const cachedProduct = await CacheService.get(cacheKey)
 
-  const id = req.params.id as string;
-  
-  if (!mongoose.isValidObjectId(id)) {
-    return sendErrorResponse(res, 400, "Invalid product ID format");
-  }
+    if (cachedProduct) {
+      return sendSuccessResponse(res, 200, "product fetched SuccessFully", cachedProduct);
+    }
 
-  const cacheKey = `product:${id}`
-
-  const cachedProduct = await CacheService.get(cacheKey)
-
-  if (cachedProduct) {
-    return sendSuccessResponse(res, 200, "product fetched SuccessFully", cachedProduct);
-  }
-
-  const product = await productService.getProductById(id)
+    const product = await productService.getProductById(id)
   if(!product){
     return sendErrorResponse(res, 404, "Product not found");
   }
 
-  await CacheService.set(cacheKey, product)
+    await CacheService.set(cacheKey, product)
 
-  return sendSuccessResponse(res, 200, "product fetched SuccessFully", product);
-}
+    return sendSuccessResponse(res, 200, "product fetched SuccessFully", product);
+  }
+);
 
 /**
  * Create a new product
