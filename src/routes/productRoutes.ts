@@ -10,6 +10,8 @@ import {
 import { uploadMultiple, uploadSingle } from "../middlewares/upload.middleware";
 import { asyncHandler } from "../utils/asyncHandler";
 import { authMiddleware, authorizationMiddleware } from "../middlewares/authMiddleware";
+import { validateRequest } from "../middlewares/validateRequest";
+import { createProductSchema, updateProductSchema } from "../utils/validators/productValidators";
 
 const router = Router();
 
@@ -153,6 +155,7 @@ router.post(
   authMiddleware,
   authorizationMiddleware(["admin"]),
   uploadMultiple("images", 5), // Name matches form field, max 5 files
+  validateRequest(createProductSchema),
   createProduct,
 );
 
@@ -230,6 +233,7 @@ router.put(
   authMiddleware,
   authorizationMiddleware(["admin"]),
   uploadMultiple("images", 5),
+  validateRequest(updateProductSchema),
   updateProduct
 );
 

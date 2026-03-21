@@ -9,6 +9,8 @@ import {
 import { asyncHandler } from "../utils/asyncHandler";
 import { authLimiter } from "../middlewares/rateLimiter";
 import { authMiddleware } from "../middlewares/authMiddleware";
+import { validateRequest } from "../middlewares/validateRequest";
+import { loginSchema, changePasswordSchema } from "../utils/validators/authValidators";
 
 const router = Router();
 
@@ -72,7 +74,7 @@ const router = Router();
  *       400:
  *         description: Missing required fields
  */
-router.post("/login", authLimiter, login);
+router.post("/login", authLimiter, validateRequest(loginSchema), login);
 
 /**
  * @swagger
@@ -228,6 +230,6 @@ router.get("/me", authMiddleware, getCurrentUser);
  *       400:
  *         description: Validation error in password requirements
  */
-router.post("/change-password", authMiddleware, changePassword);
+router.post("/change-password", authMiddleware, validateRequest(changePasswordSchema), changePassword);
 
 export default router;

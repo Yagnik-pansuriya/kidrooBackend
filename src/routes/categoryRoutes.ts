@@ -8,6 +8,8 @@ import {
 } from "../controller/categoryController";
 import { upload } from "../middlewares/upload.middleware";
 import { authMiddleware, authorizationMiddleware } from "../middlewares/authMiddleware";
+import { validateRequest } from "../middlewares/validateRequest";
+import { createCategorySchema, updateCategorySchema } from "../utils/validators/categoryValidators";
 
 const router = Router();
 
@@ -77,6 +79,7 @@ router.post(
   authMiddleware,
   authorizationMiddleware(["admin"]),
   upload.fields([{ name: "image", maxCount: 1 }, { name: "icon", maxCount: 1 }]),
+  validateRequest(createCategorySchema),
   createCategory
 );
 
@@ -119,6 +122,7 @@ router.put(
   authMiddleware,
   authorizationMiddleware(["admin"]),
   upload.fields([{ name: "image", maxCount: 1 }, { name: "icon", maxCount: 1 }]),
+  validateRequest(updateCategorySchema),
   updateCategory
 );
 
