@@ -5,9 +5,18 @@ if (!dbURL) {
   throw new Error("DB_URL is not defined in environment variables");
 }
 
+// ─── Serverless Connection Caching ─────────────────────────────────────────────
+// In serverless environments (Vercel), we cache the connection promise
+// to reuse across invocations within the same container.
+let cached: { conn: typeof mongoose | null; promise: Promise<typeof mongoose> | null } = {
+  conn: null,
+  promise: null,
+};
+
+// For traditional server environments
 let retries = 5;
 
-//mongodb event listeners
+// MongoDB event listeners
 mongoose.connection.on("connected", () => {
   console.log("MongoDB connection established");
 });
@@ -20,24 +29,42 @@ mongoose.connection.on("disconnected", () => {
   console.warn("MongoDB disconnected");
 });
 
-export const connectDB = async () => {
+export const connectDB = async (): Promise<typeof mongoose> => {
+  // If already connected, return the cached connection
+  if (cached.conn) {
+    return cached.conn;
+  }
+
+  // If a connection is already in progress, wait for it
+  if (cached.promise) {
+    cached.conn = await cached.promise;
+    return cached.conn;
+  }
+
+  const isServerless = process.env.VERCEL === "1";
+
   try {
-    await mongoose.connect(dbURL, {
-      maxPoolSize: 20,
-      minPoolSize: 5,
+    cached.promise = mongoose.connect(dbURL, {
+      maxPoolSize: isServerless ? 5 : 20,
+      minPoolSize: isServerless ? 1 : 5,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
     });
+
+    cached.conn = await cached.promise;
+    return cached.conn;
   } catch (error) {
+    cached.promise = null;
     console.error("MongoDB connection ERROR! ==> ", error);
 
-    if (retries > 0) {
+    // Only retry in traditional server mode (not serverless)
+    if (!isServerless && retries > 0) {
       retries--;
       console.log(`Retrying MongoDB connection... attempts left: ${retries}`);
-      setTimeout(connectDB, 6000);
+      await new Promise((resolve) => setTimeout(resolve, 6000));
+      return connectDB();
     } else {
-      console.error("Failed to connect to MongoDB after 5 attempts. Exiting.");
-      process.exit(1);
+      throw error;
     }
   }
 };
@@ -47,6 +74,8 @@ export const gracefulShutdown = async () => {
     console.log("Mongo readyState:", mongoose.connection.readyState);
     console.log("Closing MongoDB connection...");
     await mongoose.connection.close();
+    cached.conn = null;
+    cached.promise = null;
     console.log("MongoDB connection closed due to app termination");
     process.exit(0);
   } catch (error) {

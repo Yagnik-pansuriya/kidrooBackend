@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 // Validate critical environment variables
-const requiredEnvVars = ["DB_URL"];
+const requiredEnvVars = ["DB_URL", "JWT_SECRET"];
 const missingEnvVars = requiredEnvVars.filter((envVar) => !process.env[envVar]);
 
 if (missingEnvVars.length > 0) {
