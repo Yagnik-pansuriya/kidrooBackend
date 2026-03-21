@@ -1,6 +1,15 @@
 node_modules
 npm-debug.log
 .env
+.env.local
 dist
 uploads/
 .DS_Store
+
+# Logs & error files
+error.log
+*.log
+typescript-errors.txt
+
+# Vercel
+.vercel
