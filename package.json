@@ -9,7 +9,8 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "node dist/index.ts",
-    "seed": "ts-node scripts/seedAdmin.ts"
+    "seed": "ts-node scripts/seedAdmin.ts",
+    "seed:data": "ts-node scripts/seedData.ts"
   },
   "devDependencies": {
     "@types/compression": "^1.8.1",
