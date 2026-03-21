@@ -24,6 +24,7 @@ const isProduction = NODE_ENV === "production";
 console.log(`Starting server in ${NODE_ENV} mode...`);
 
 import { connectDB, gracefulShutdown } from "./config/db";
+import { connectRedis, disconnectRedis } from "./config/redis";
 import app, { getActiveRequests } from "./app";
 import http from "http";
 
@@ -33,12 +34,13 @@ const server = http.createServer(app);
 
 const startServer = async () => {
   await connectDB();
+  await connectRedis();
 
   server.listen(PORT, () => {
     console.log(`\nServer running on port ${PORT}`);
     // if (!isProduction) {
       console.log(`\nSwagger UI Documentation:`);
-      console.log(`   http://localhost:${PORT}/docs\n`);
+      console.log(`http://localhost:${PORT}/docs\n`);
     // }
   });
 };
@@ -60,6 +62,7 @@ const shutdown = (signal: string) => {
     console.log("HTTP server closed");
 
     try {
+      await disconnectRedis();
       await gracefulShutdown();
       console.log("Shutdown complete");
       process.exit(0);

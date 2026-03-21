@@ -18,6 +18,7 @@ import {
 } from "../utils/apiResponse";
 import AppError from "../utils/appError";
 import User from "../models/user";
+import { authService } from "../services/authService";
 
 /**
  * User Login
@@ -30,7 +31,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     throw new AppError("Please provide email and password", 400);
   }
 
-  const user = await User.findOne({ email }).select("+password");
+  const user = await authService.getUserByEmail(email);
   
   if (!user) {
     throw new AppError("Invalid email or password", 401);
@@ -42,9 +43,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     throw new AppError("Invalid email or password", 401);
   }
 
-  const isPasswordCorrect = await user.comparePassword(password);
-
-  console.log("Password comparison result:", isPasswordCorrect);
+  const isPasswordCorrect = await user.comparePassword(password); 
 
   if (!isPasswordCorrect) {
     throw new AppError("Invalid email or password", 401);

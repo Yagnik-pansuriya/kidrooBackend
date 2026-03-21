@@ -4,11 +4,56 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
+  getAllProducts,
+  getProductById,
 } from "../controller/productController";
 import { uploadMultiple, uploadSingle } from "../middlewares/upload.middleware";
 import { asyncHandler } from "../utils/asyncHandler";
+import { authMiddleware, authorizationMiddleware } from "../middlewares/authMiddleware";
 
 const router = Router();
+
+/**
+ * @swagger
+ * /api/products:
+ *   get:
+ *     summary: Get all products
+ *     description: Retrieve a list of all products
+ *     tags:
+ *       - Products
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved list of products
+ *       500:
+ *         description: Server error
+ */
+router.get("/", getAllProducts);
+
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   get:
+ *     summary: Get a product by ID
+ *     description: Retrieve a single product by its database ID
+ *     tags:
+ *       - Products
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: "60dfssdf0f8sfsklfdfss"
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved the product
+ *       404:
+ *         description: Product not found
+ *       500:
+ *         description: Server error
+ */
+router.get("/:id", getProductById);
+
 
 /**
  * @swagger
@@ -25,24 +70,70 @@ const router = Router();
  *           schema:
  *             type: object
  *             required:
- *               - name
+ *               - productName
+ *               - slug
+ *               - description
  *               - price
+ *               - originalPrice
+ *               - discountPercentage
+ *               - stock
  *               - category
+ *               - ratings
+ *               - numReviews
+ *               - featured
+ *               - newArrival
+ *               - bestSeller
+ *               - tags
+ *               - isActive
  *             properties:
- *               name:
+ *               productName:
  *                 type: string
- *                 minLength: 3
  *                 example: "Wooden Toy Car"
+ *               slug:
+ *                 type: string
+ *                 example: "wooden-toy-car"
  *               description:
  *                 type: string
  *                 example: "High-quality wooden toy car"
  *               price:
  *                 type: number
- *                 minimum: 0
  *                 example: 29.99
+ *               originalPrice:
+ *                 type: number
+ *                 example: 39.99
+ *               discountPercentage:
+ *                 type: number
+ *                 example: 25
+ *               stock:
+ *                 type: number
+ *                 example: 100
  *               category:
  *                 type: string
- *                 example: "vehicles"
+ *                 example: "60dfssdf0f8sfsklfdfss"
+ *               ratings:
+ *                 type: number
+ *                 example: 4.5
+ *               numReviews:
+ *                 type: number
+ *                 example: 120
+ *               featured:
+ *                 type: boolean
+ *                 example: true
+ *               newArrival:
+ *                 type: boolean
+ *                 example: true
+ *               bestSeller:
+ *                 type: boolean
+ *                 example: false
+ *               ageRange:
+ *                 type: string
+ *                 example: '{"from": 3, "to": 8}'
+ *               tags:
+ *                 type: string
+ *                 example: "wooden,car,toy"
+ *               isActive:
+ *                 type: boolean
+ *                 example: true
  *               images:
  *                 type: array
  *                 items:
@@ -52,29 +143,6 @@ const router = Router();
  *     responses:
  *       201:
  *         description: Product created successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: "Product created successfully"
- *                 data:
- *                   type: object
- *                   properties:
- *                     name:
- *                       type: string
- *                     price:
- *                       type: number
- *                     images:
- *                       type: array
- *                       items:
- *                         type: string
- *                         example: "https://res.cloudinary.com/..."
  *       400:
  *         description: Validation error or missing fields
  *       500:
@@ -82,6 +150,8 @@ const router = Router();
  */
 router.post(
   "/",
+  authMiddleware,
+  authorizationMiddleware(["admin"]),
   uploadMultiple("images", 5), // Name matches form field, max 5 files
   createProduct,
 );
@@ -108,14 +178,40 @@ router.post(
  *           schema:
  *             type: object
  *             properties:
- *               name:
+ *               productName:
+ *                 type: string
+ *               slug:
  *                 type: string
  *               description:
  *                 type: string
  *               price:
  *                 type: number
+ *               originalPrice:
+ *                 type: number
+ *               discountPercentage:
+ *                 type: number
+ *               stock:
+ *                 type: number
  *               category:
  *                 type: string
+ *               ratings:
+ *                 type: number
+ *               numReviews:
+ *                 type: number
+ *               featured:
+ *                 type: boolean
+ *               newArrival:
+ *                 type: boolean
+ *               bestSeller:
+ *                 type: boolean
+ *               ageRange:
+ *                 type: string
+ *                 example: '{"from": 3, "to": 8}'
+ *               tags:
+ *                 type: string
+ *                 example: "wooden,car,toy"
+ *               isActive:
+ *                 type: boolean
  *               images:
  *                 type: array
  *                 items:
@@ -129,7 +225,13 @@ router.post(
  *       404:
  *         description: Product not found
  */
-router.put("/:id", uploadMultiple("images", 5), updateProduct);
+router.put(
+  "/:id",
+  authMiddleware,
+  authorizationMiddleware(["admin"]),
+  uploadMultiple("images", 5),
+  updateProduct
+);
 
 /**
  * @swagger
@@ -152,6 +254,11 @@ router.put("/:id", uploadMultiple("images", 5), updateProduct);
  *       404:
  *         description: Product not found
  */
-router.delete("/:id", deleteProduct);
+router.delete(
+  "/:id",
+  authMiddleware,
+  authorizationMiddleware(["admin"]),
+  deleteProduct
+);
 
 export default router;

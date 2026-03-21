@@ -1,12 +1,18 @@
 import multer from "multer";
 import path from "path";
+import fs from "fs";
 import { Request, Response, NextFunction } from "express";
 import AppError from "../utils/appError";
+
+const uploadDir = "uploads/";
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 // Set storage for temporary files
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "uploads/"); // Temporary directory
+    cb(null, uploadDir); // Temporary directory
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
