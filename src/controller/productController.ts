@@ -1,24 +1,31 @@
-// src/controller/productController.ts
 import { Request, Response } from "express";
 import { asyncHandler } from "../utils/asyncHandler";
 import AppError from "../utils/appError";
-import { uploadToCloudinary, deleteFromCloudinary } from "../utils/uploadToCloudinary";
+import {
+  uploadToCloudinary,
+  deleteFromCloudinary,
+} from "../utils/uploadToCloudinary";
 import fs from "fs";
 import { CacheService } from "../services/redisCacheService";
 import { sendErrorResponse, sendSuccessResponse } from "../utils/apiResponse";
 import { productService } from "../services/productService";
 import mongoose from "mongoose";
+import Product from "../models/products";
 
-// Helper to extract Cloudinary public_id from secure URL
 const extractPublicId = (url: string) => {
   try {
     const uploadIndex = url.indexOf("/upload/");
     if (uploadIndex === -1) return null;
     const afterUpload = url.substring(uploadIndex + 8);
     const withoutVersion = afterUpload.replace(/^v\d+\//, "");
-    const withoutExtension = withoutVersion.substring(0, withoutVersion.lastIndexOf("."));
+    const withoutExtension = withoutVersion.substring(
+      0,
+      withoutVersion.lastIndexOf("."),
+    );
     return withoutExtension || withoutVersion;
-  } catch(e) { return null; }
+  } catch (e) {
+    return null;
+  }
 };
 
 /**
@@ -27,48 +34,68 @@ const extractPublicId = (url: string) => {
  */
 export const getAllProducts = asyncHandler(
   async (req: Request, res: Response) => {
-    const cacheKey = "products";
+    const { page = 1, limit = 10, ...filters } = req.query;
+    const cacheKey = `products:page:${page}:limit:${limit}:${JSON.stringify(filters)}`;
 
-    const cachedProducts = await CacheService.get(cacheKey)
+    const cachedProducts = await CacheService.get(cacheKey);
 
     if (cachedProducts) {
-      return sendSuccessResponse(res, 200, "product fetched SuccessFully", cachedProducts);
+      return sendSuccessResponse(
+        res,
+        200,
+        "product fetched SuccessFully",
+        cachedProducts,
+      );
     }
 
-    const products = await productService.getAllProducts()
+    const products = await productService.getAllProducts(req.query);
 
-    await CacheService.set(cacheKey, products)
+    await CacheService.set(cacheKey, products);
 
-    return sendSuccessResponse(res, 200, "product fetched SuccessFully", products);
-  }
+    return sendSuccessResponse(
+      res,
+      200,
+      "product fetched SuccessFully",
+      products,
+    );
+  },
 );
 
 export const getProductById = asyncHandler(
   async (req: Request, res: Response) => {
-
     const id = req.params.id as string;
-    
+
     if (!mongoose.isValidObjectId(id)) {
       return sendErrorResponse(res, 400, "Invalid product ID format");
     }
 
-    const cacheKey = `product:${id}`
+    const cacheKey = `product:${id}`;
 
-    const cachedProduct = await CacheService.get(cacheKey)
+    const cachedProduct = await CacheService.get(cacheKey);
 
     if (cachedProduct) {
-      return sendSuccessResponse(res, 200, "product fetched SuccessFully", cachedProduct);
+      return sendSuccessResponse(
+        res,
+        200,
+        "product fetched SuccessFully",
+        cachedProduct,
+      );
     }
 
-    const product = await productService.getProductById(id)
-  if(!product){
-    return sendErrorResponse(res, 404, "Product not found");
-  }
+    const product = await productService.getProductById(id);
+    if (!product) {
+      return sendErrorResponse(res, 404, "Product not found");
+    }
 
-    await CacheService.set(cacheKey, product)
+    await CacheService.set(cacheKey, product);
 
-    return sendSuccessResponse(res, 200, "product fetched SuccessFully", product);
-  }
+    return sendSuccessResponse(
+      res,
+      200,
+      "product fetched SuccessFully",
+      product,
+    );
+  },
 );
 
 /**
@@ -82,70 +109,74 @@ export const createProduct = asyncHandler(
       description,
       price,
       originalPrice,
-      discountPercentage,
       stock,
       category,
-      image,
       images,
-      ratings,
-      numReviews,
       featured,
       newArrival,
       bestSeller,
       ageRange,
       tags,
       isActive,
+      hasVariants,
     } = req.body;
 
-    // Optional string to object/array parsing in case of form-data
     if (typeof tags === "string") {
-      try { tags = JSON.parse(tags); } catch { tags = tags.split(","); }
+      try {
+        tags = JSON.parse(tags);
+      } catch {
+        tags = tags.split(",");
+      }
     }
+
     if (typeof ageRange === "string") {
-      try { ageRange = JSON.parse(ageRange); } catch {}
-    }
-    if (typeof images === "string") {
-      try { images = JSON.parse(images); } catch {}
+      try {
+        ageRange = JSON.parse(ageRange);
+      } catch {}
     }
 
     if (category && !mongoose.isValidObjectId(category)) {
-      throw new AppError("Invalid category ID format", 400);
+      throw new AppError("Invalid category ID", 400);
+    }
+
+    // slug unique
+    const existingSlug = await Product.findOne({ slug });
+
+    if (existingSlug) {
+      throw new AppError("Slug already exists", 400);
+    }
+
+    // discount calculate
+    const discountPercentage =
+      originalPrice > 0
+        ? Math.round(((originalPrice - price) / originalPrice) * 100)
+        : 0;
+
+    // stock rule
+    if (hasVariants) {
+      stock = 0;
     }
 
     let imageUrls: string[] = [];
 
-    // Get files from multer middleware
-    const files = req.files as Express.Multer.File[] | undefined;
+    const files = req.files as Express.Multer.File[];
 
-    if (files && files.length > 0) {
-      console.log(`[INFO] Uploading ${files.length} images to Cloudinary...`);
-
+    if (files?.length) {
       for (const file of files) {
-        try {
-          const result = await uploadToCloudinary(file.path, {
-            folder: "kidroo/products",
-            public_id: `${slug || "product"}-${Date.now()}`,
-            resource_type: "image",
-            quality: "auto",
-          });
+        const result = await uploadToCloudinary(file.path, {
+          folder: "kidroo/products",
+        });
 
-          imageUrls.push(result.url);
+        imageUrls.push(result.url);
 
-          if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-        } catch (uploadError: any) {
-          console.error(`[ERROR] Failed to upload image ${file.originalname}:`, uploadError.message);
-          if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-          throw new AppError(`Failed to upload image ${file.originalname}: ${uploadError.message}`, 500);
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
         }
       }
     }
 
-    // Assign URLs correctly
-    const finalImage = imageUrls.length > 0 ? imageUrls[0] : image;
-    const finalImages = imageUrls.length > 0 ? imageUrls : images;
-
-    if (!finalImage) {
-      throw new AppError("At least one image is required for the product", 400);
+    if (!imageUrls.length) {
+      throw new AppError("Image required", 400);
     }
 
     const product = await productService.createProduct({
@@ -157,46 +188,40 @@ export const createProduct = asyncHandler(
       discountPercentage,
       stock,
       category,
-      image: finalImage,
-      images: finalImages,
-      ratings,
-      numReviews,
+      image: imageUrls[0],
+      images: imageUrls,
+      ratings: 0,
+      numReviews: 0,
       featured,
       newArrival,
       bestSeller,
       ageRange,
       tags,
       isActive,
+      hasVariants,
     });
 
-    await CacheService.del("products");
+    await CacheService.delPattern("products:*");
 
-    return sendSuccessResponse(
-      res,
-      201,
-      "Product created successfully",
-      product
-    );
-  }
+    return sendSuccessResponse(res, 201, "Product created", product);
+  },
 );
 
-/**
- * Update product with optional new images
- */
 export const updateProduct = asyncHandler(
   async (req: Request, res: Response) => {
     const id = req.params.id as string;
-    
+
     if (!mongoose.isValidObjectId(id)) {
       throw new AppError("Invalid product ID format", 400);
     }
 
-    // Fetch existing product to cleanup old images if replacing
     const existingProduct = await productService.getProductById(id);
     if (!existingProduct) {
       const files = req.files as Express.Multer.File[] | undefined;
       if (files && files.length > 0) {
-        files.forEach(f => { if(fs.existsSync(f.path)) fs.unlinkSync(f.path); });
+        files.forEach((f) => {
+          if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
+        });
       }
       throw new AppError("Product not found", 404);
     }
@@ -222,15 +247,22 @@ export const updateProduct = asyncHandler(
       isActive,
     } = req.body;
 
-    // Parse stringified arrays/objects
     if (typeof tags === "string") {
-      try { tags = JSON.parse(tags); } catch { tags = tags.split(","); }
+      try {
+        tags = JSON.parse(tags);
+      } catch {
+        tags = tags.split(",");
+      }
     }
     if (typeof ageRange === "string") {
-      try { ageRange = JSON.parse(ageRange); } catch {}
+      try {
+        ageRange = JSON.parse(ageRange);
+      } catch {}
     }
     if (typeof images === "string") {
-      try { images = JSON.parse(images); } catch {}
+      try {
+        images = JSON.parse(images);
+      } catch {}
     }
 
     if (category && !mongoose.isValidObjectId(category)) {
@@ -256,7 +288,10 @@ export const updateProduct = asyncHandler(
           if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
         } catch (error: any) {
           if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-          throw new AppError(`Failed to upload replacement image: ${error.message}`, 500);
+          throw new AppError(
+            `Failed to upload replacement image: ${error.message}`,
+            500,
+          );
         }
       }
     }
@@ -280,7 +315,6 @@ export const updateProduct = asyncHandler(
       isActive,
     };
 
-    // If new images were uploaded, override existing images
     if (imageUrls.length > 0) {
       updateData.image = imageUrls[0];
       updateData.images = imageUrls;
@@ -289,21 +323,25 @@ export const updateProduct = asyncHandler(
       if (images !== undefined) updateData.images = images;
     }
 
-    // Clean up undefined fields dynamically
     Object.keys(updateData).forEach(
-      (key) => updateData[key] === undefined && delete updateData[key]
+      (key) => updateData[key] === undefined && delete updateData[key],
     );
 
     const product = await productService.updateProduct(id, updateData);
 
-    // Delete OLD images from Cloudinary ONLY IF we successfully uploaded NEW images and updated DB
-    if (hasNewImages && existingProduct.images && existingProduct.images.length > 0) {
+    if (
+      hasNewImages &&
+      existingProduct.images &&
+      existingProduct.images.length > 0
+    ) {
       for (const oldImgUrl of existingProduct.images) {
         const publicId = extractPublicId(oldImgUrl);
         if (publicId) {
           try {
             await deleteFromCloudinary(publicId, "image");
-          } catch(e) { console.error(`Failed to cleanup old image ${publicId}`); }
+          } catch (e) {
+            console.error(`Failed to cleanup old image ${publicId}`);
+          }
         }
       }
     } else if (hasNewImages && existingProduct.image) {
@@ -311,24 +349,28 @@ export const updateProduct = asyncHandler(
       if (publicId) {
         try {
           await deleteFromCloudinary(publicId, "image");
-        } catch(e) { console.error(`Failed to cleanup old image ${publicId}`); }
+        } catch (e) {
+          console.error(`Failed to cleanup old image ${publicId}`);
+        }
       }
     }
 
-    await CacheService.del("products");
+    await CacheService.delPattern("products:*");
     await CacheService.del(`product:${id}`);
 
-    return sendSuccessResponse(res, 200, "Product updated successfully", product);
-  }
+    return sendSuccessResponse(
+      res,
+      200,
+      "Product updated successfully",
+      product,
+    );
+  },
 );
 
-/**
- * Delete product and cleanup images from Cloudinary
- */
 export const deleteProduct = asyncHandler(
   async (req: Request, res: Response) => {
     const id = req.params.id as string;
-    
+
     if (!mongoose.isValidObjectId(id)) {
       throw new AppError("Invalid product ID format", 400);
     }
@@ -339,7 +381,6 @@ export const deleteProduct = asyncHandler(
       throw new AppError("Product not found", 404);
     }
 
-    // Delete images from Cloudinary
     if (product.images && product.images.length > 0) {
       for (const imageUrl of product.images) {
         const publicId = extractPublicId(imageUrl);
@@ -347,7 +388,10 @@ export const deleteProduct = asyncHandler(
           try {
             await deleteFromCloudinary(publicId, "image");
           } catch (error) {
-            console.error(`Failed to delete image ${publicId} from Cloudinary:`, error);
+            console.error(
+              `Failed to delete image ${publicId} from Cloudinary:`,
+              error,
+            );
           }
         }
       }
@@ -357,17 +401,18 @@ export const deleteProduct = asyncHandler(
         try {
           await deleteFromCloudinary(publicId, "image");
         } catch (error) {
-          console.error(`Failed to delete main image ${publicId} from Cloudinary:`, error);
+          console.error(
+            `Failed to delete main image ${publicId} from Cloudinary:`,
+            error,
+          );
         }
       }
     }
-
-    // Delete from database
     await productService.deleteProductById(id);
 
-    await CacheService.del("products");
+    await CacheService.delPattern("products:*");
     await CacheService.del(`product:${id}`);
 
     return sendSuccessResponse(res, 200, "Product deleted successfully", null);
-  }
+  },
 );

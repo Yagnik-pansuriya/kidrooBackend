@@ -114,6 +114,11 @@ export const createOffer = asyncHandler(
     const files = req.files as Express.Multer.File[] | undefined;
 
     if (files && files.length > 0) {
+      if (type !== "slider" && files.length > 1) {
+        files.forEach(f => { if(fs.existsSync(f.path)) fs.unlinkSync(f.path); });
+        throw new AppError("Only 1 image is allowed for this offer type", 400);
+      }
+
       console.log(`[INFO] Uploading ${files.length} images to Cloudinary...`);
 
       for (const file of files) {
@@ -212,6 +217,12 @@ export const updateOffer = asyncHandler(
     let hasNewImages = false;
 
     if (files && files.length > 0) {
+      const currentType = type || existingOffer.type;
+      if (currentType !== "slider" && files.length > 1) {
+        files.forEach(f => { if(fs.existsSync(f.path)) fs.unlinkSync(f.path); });
+        throw new AppError("Only 1 image is allowed for this offer type", 400);
+      }
+
       hasNewImages = true;
       for (const file of files) {
         try {
@@ -251,14 +262,12 @@ export const updateOffer = asyncHandler(
       updateData.image = imageUrls;
     }
 
-    // Clean up undefined fields dynamically
     Object.keys(updateData).forEach(
       (key) => updateData[key] === undefined && delete updateData[key]
     );
 
     const offer = await offerService.updateOffer(id, updateData);
 
-    // Delete OLD images from Cloudinary ONLY IF we successfully uploaded NEW images and updated DB
     if (hasNewImages && existingOffer.image && Array.isArray(existingOffer.image) && existingOffer.image.length > 0) {
       for (const oldImgUrl of existingOffer.image) {
         const publicId = extractPublicId(oldImgUrl);

@@ -11,7 +11,6 @@ export const globalErrorHandler = (
   const statusCode = err.statusCode || 500;
   const requestId = req.headers["x-request-id"] || "unknown";
 
-  // Always log errors server-side
   console.error(`[${requestId}] ERROR:`, {
     message: err.message,
     statusCode,
@@ -20,17 +19,14 @@ export const globalErrorHandler = (
     method: req.method,
   });
 
-  // Production: Don't expose sensitive details
   if (isProduction) {
     if (err.isOperational) {
-      // Operational error - safe to send to client
       return res.status(statusCode).json({
         success: false,
         message: err.message,
         requestId,
       });
     } else {
-      // Programming or unknown error - don't expose details
       return res.status(500).json({
         success: false,
         message: "Internal Server Error",
@@ -39,7 +35,6 @@ export const globalErrorHandler = (
     }
   }
 
-  // Development: Send full error details
   res.status(statusCode).json({
     success: false,
     message: err.message || "Internal Server Error",
