@@ -1,14 +1,18 @@
 import Product, { IProduct } from "../models/products";
+import { paginateQuery } from "../utils/common/paginateQuarry";
 
 class ProductService{
-  async getAllProducts() {
-    const products = await Product.find().populate("category")
-    return products
+  async getAllProducts(query: any = {}) {
+    return await paginateQuery({
+      model: Product,
+      query: query,
+      populate: ["category", "variants"]
+    });
   }
 
   async getProductById(id:string) {
-    const product = await Product.findById(id).populate("category")
-    return product
+    const product = await Product.findById(id).populate("category").populate("variants");
+    return product;
   }
 
   async createProduct(productData:IProduct) {

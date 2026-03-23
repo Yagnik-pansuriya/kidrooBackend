@@ -7,11 +7,23 @@ import {
   getAllProducts,
   getProductById,
 } from "../controller/productController";
+import {
+  createVariant,
+  updateVariant,
+  getVariantsByProduct,
+  deleteVariant,
+} from "../controller/variantController";
 import { uploadMultiple, uploadSingle } from "../middlewares/upload.middleware";
 import { asyncHandler } from "../utils/asyncHandler";
-import { authMiddleware, authorizationMiddleware } from "../middlewares/authMiddleware";
+import {
+  authMiddleware,
+  authorizationMiddleware,
+} from "../middlewares/authMiddleware";
 import { validateRequest } from "../middlewares/validateRequest";
-import { createProductSchema, updateProductSchema } from "../utils/validators/productValidators";
+import {
+  createProductSchema,
+  updateProductSchema,
+} from "../utils/validators/productValidators";
 
 const router = Router();
 
@@ -55,7 +67,6 @@ router.get("/", getAllProducts);
  *         description: Server error
  */
 router.get("/:id", getProductById);
-
 
 /**
  * @swagger
@@ -234,7 +245,7 @@ router.put(
   authorizationMiddleware(["admin"]),
   uploadMultiple("images", 5),
   validateRequest(updateProductSchema),
-  updateProduct
+  updateProduct,
 );
 
 /**
@@ -262,7 +273,188 @@ router.delete(
   "/:id",
   authMiddleware,
   authorizationMiddleware(["admin"]),
-  deleteProduct
+  deleteProduct,
+);
+
+// --- Product Variants Routes --- //
+
+/**
+ * @swagger
+ * /api/products/{productId}/variants:
+ *   get:
+ *     summary: Get all variants for a product
+ *     description: Retrieve all active variants (sizes, colors, editions) for a specific toy.
+ *     tags:
+ *       - Variants
+ *     parameters:
+ *       - in: path
+ *         name: productId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the base Toy Product
+ *         example: "60dfssdf0f8sfsklfdfss"
+ *     responses:
+ *       200:
+ *         description: List of variants retrieved successfully
+ *       400:
+ *         description: Invalid Product ID format
+ */
+router.get("/:productId/variants", getVariantsByProduct);
+
+/**
+ * @swagger
+ * /api/products/{productId}/variants:
+ *   post:
+ *     summary: Create a new variant for a toy
+ *     description: Add a new variant (e.g., a "Collector's Edition" or "Red Color") to a base toy product. (Admin only)
+ *     tags:
+ *       - Variants
+ *     parameters:
+ *       - in: path
+ *         name: productId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the base Toy Product
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - sku
+ *               - attributes
+ *               - price
+ *               - originalPrice
+ *               - stock
+ *             properties:
+ *               sku:
+ *                 type: string
+ *                 example: "TOY-CAR-RED-001"
+ *               attributes:
+ *                 type: object
+ *                 description: Flexible attributes for the toy variant (Color, Size, Material, etc.)
+ *                 example:
+ *                   Color: "Red"
+ *                   Edition: "Collector's Edition"
+ *                   Material: "Wood"
+ *               price:
+ *                 type: number
+ *                 example: 34.99
+ *               originalPrice:
+ *                 type: number
+ *                 example: 39.99
+ *               stock:
+ *                 type: number
+ *                 example: 50
+ *               image:
+ *                 type: string
+ *                 description: URL to a specific image highlighting this variant
+ *                 example: "https://cloudinary.com/toy-car-red.jpg"
+ *               isActive:
+ *                 type: boolean
+ *                 example: true
+ *     responses:
+ *       201:
+ *         description: Variant created successfully
+ *       400:
+ *         description: Invalid input or SKU already exists
+ *       404:
+ *         description: Base product not found
+ */
+router.post(
+  "/:productId/variants",
+  authMiddleware,
+  authorizationMiddleware(["admin"]),
+  createVariant,
+);
+
+/**
+ * @swagger
+ * /api/products/variants/{variantId}:
+ *   put:
+ *     summary: Update an existing toy variant
+ *     description: Modify details of a specific toy variant like its price, attributes, or image. Note that updating `stock` directly through this endpoint bypasses the InventoryTransaction Ledger and is not recommended for normal stock deductions. (Admin only)
+ *     tags:
+ *       - Variants
+ *     parameters:
+ *       - in: path
+ *         name: variantId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the Variant to update
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               sku:
+ *                 type: string
+ *                 example: "TOY-CAR-RED-002"
+ *               attributes:
+ *                 type: object
+ *                 example:
+ *                   Color: "Crimson Red"
+ *               price:
+ *                 type: number
+ *                 example: 29.99
+ *               originalPrice:
+ *                 type: number
+ *                 example: 39.99
+ *               image:
+ *                 type: string
+ *                 example: "https://cloudinary.com/toy-car-crimson.jpg"
+ *               isActive:
+ *                 type: boolean
+ *                 example: true
+ *     responses:
+ *       200:
+ *         description: Variant updated successfully
+ *       400:
+ *         description: Invalid Variant ID format
+ *       404:
+ *         description: Variant not found
+ */
+router.put(
+  "/variants/:variantId",
+  authMiddleware,
+  authorizationMiddleware(["admin"]),
+  updateVariant,
+);
+
+/**
+ * @swagger
+ * /api/products/variants/{variantId}:
+ *   delete:
+ *     summary: Delete a variant
+ *     description: Delete a specific variant by its ID
+ *     tags:
+ *       - Variants
+ *     parameters:
+ *       - in: path
+ *         name: variantId
+ *         required: true
+ *         description: The ID of the variant to delete
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Variant deleted successfully
+ *       400:
+ *         description: Invalid Variant ID format
+ *       404:
+ *         description: Variant not found
+ */
+router.delete(
+  "/variants/:variantId",
+  authMiddleware,
+  authorizationMiddleware(["admin"]),
+  deleteVariant,
 );
 
 export default router;

@@ -9,7 +9,6 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Set storage for temporary files
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, uploadDir); // Temporary directory
@@ -23,13 +22,11 @@ const storage = multer.diskStorage({
   },
 });
 
-// File filter
 const fileFilter = (
   req: any,
   file: Express.Multer.File,
   cb: multer.FileFilterCallback,
 ) => {
-  // Allowed mime types
   const allowedMimes = [
     "image/jpeg",
     "image/png",
@@ -57,10 +54,7 @@ export const upload = multer({
   },
 });
 
-/**
- * Middleware to handle single file upload
- * @param fieldName - Form field name for the file
- */
+
 export const uploadSingle = (fieldName: string) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const singleUpload = upload.single(fieldName);
@@ -79,11 +73,7 @@ export const uploadSingle = (fieldName: string) => {
   };
 };
 
-/**
- * Middleware to handle multiple file uploads
- * @param fieldName - Form field name for files
- * @param maxCount - Maximum number of files to upload
- */
+
 export const uploadMultiple = (fieldName: string, maxCount: number = 5) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const multipleUpload = upload.array(fieldName, maxCount);

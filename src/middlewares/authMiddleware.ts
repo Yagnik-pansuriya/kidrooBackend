@@ -2,16 +2,12 @@ import { Request, Response, NextFunction } from "express";
 import { verifyToken } from "../utils/jwt";
 import AppError from "../utils/appError";
 
-/**
- * Verify JWT token from cookie or header
- */
 export const authMiddleware = (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
   try {
-    // Get token from cookie or Authorization header
     let token = req.cookies?.accessToken;
 
     if (!token) {
@@ -25,10 +21,8 @@ export const authMiddleware = (
       throw new AppError("No token provided. Please log in.", 401);
     }
 
-    // Verify token
     const decoded = verifyToken(token);
 
-    // Attach user info to request
     (req as any).userId = decoded.id;
     (req as any).user = decoded;
 
@@ -42,9 +36,6 @@ export const authMiddleware = (
   }
 };
 
-/**
- * Check if user has specific role
- */
 export const authorizationMiddleware = (allowedRoles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
