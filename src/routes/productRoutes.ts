@@ -96,8 +96,10 @@ router.get("/:id", getProductById);
  *               - featured
  *               - newArrival
  *               - bestSeller
+ *               - ageRange
  *               - tags
  *               - isActive
+ *               - images
  *             properties:
  *               productName:
  *                 type: string
@@ -147,6 +149,14 @@ router.get("/:id", getProductById);
  *               isActive:
  *                 type: boolean
  *                 example: true
+ *               hasVariants:
+ *                 type: boolean
+ *                 example: false
+ *               variants:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: []
  *               images:
  *                 type: array
  *                 items:
@@ -226,6 +236,12 @@ router.post(
  *                 example: "wooden,car,toy"
  *               isActive:
  *                 type: boolean
+ *               hasVariants:
+ *                 type: boolean
+ *               variants:
+ *                 type: array
+ *                 items:
+ *                   type: string
  *               images:
  *                 type: array
  *                 items:
@@ -297,6 +313,57 @@ router.delete(
  *     responses:
  *       200:
  *         description: List of variants retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       _id:
+ *                         type: string
+ *                       product:
+ *                         type: string
+ *                       sku:
+ *                         type: string
+ *                       barcode:
+ *                         type: string
+ *                       attributes:
+ *                         type: object
+ *                       price:
+ *                         type: number
+ *                       originalPrice:
+ *                         type: number
+ *                       stock:
+ *                         type: number
+ *                       lowStockAlert:
+ *                         type: number
+ *                       images:
+ *                         type: array
+ *                         items:
+ *                           type: string
+ *                       weight:
+ *                         type: number
+ *                       dimensions:
+ *                         type: object
+ *                         properties:
+ *                           length:
+ *                             type: number
+ *                           width:
+ *                             type: number
+ *                           height:
+ *                             type: number
+ *                       status:
+ *                         type: string
+ *                       isDefault:
+ *                         type: boolean
  *       400:
  *         description: Invalid Product ID format
  */
@@ -307,7 +374,7 @@ router.get("/:productId/variants", getVariantsByProduct);
  * /api/products/{productId}/variants:
  *   post:
  *     summary: Create a new variant for a toy
- *     description: Add a new variant (e.g., a "Collector's Edition" or "Red Color") to a base toy product. (Admin only)
+ *     description: Add a new variant (e.g., a "Collector's Edition" or "Red Color") to a base toy product. Allows uploading multiple images. (Admin only)
  *     tags:
  *       - Variants
  *     parameters:
@@ -320,26 +387,24 @@ router.get("/:productId/variants", getVariantsByProduct);
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             required:
  *               - sku
  *               - attributes
  *               - price
- *               - originalPrice
- *               - stock
  *             properties:
  *               sku:
  *                 type: string
  *                 example: "TOY-CAR-RED-001"
+ *               barcode:
+ *                 type: string
+ *                 example: "1234567890123"
  *               attributes:
- *                 type: object
- *                 description: Flexible attributes for the toy variant (Color, Size, Material, etc.)
- *                 example:
- *                   Color: "Red"
- *                   Edition: "Collector's Edition"
- *                   Material: "Wood"
+ *                 type: string
+ *                 description: Flexible attributes for the toy variant properly stringified (Color, Size, Material, etc.)
+ *                 example: '{"Color": "Red", "Edition": "Collector\'s Edition", "Material": "Wood"}'
  *               price:
  *                 type: number
  *                 example: 34.99
@@ -349,13 +414,30 @@ router.get("/:productId/variants", getVariantsByProduct);
  *               stock:
  *                 type: number
  *                 example: 50
- *               image:
+ *               lowStockAlert:
+ *                 type: number
+ *                 example: 5
+ *               images:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: "Upload up to 5 images for this variant highlighting details"
+ *               weight:
+ *                 type: number
+ *                 description: Weight in grams or kg
+ *                 example: 500
+ *               dimensions:
  *                 type: string
- *                 description: URL to a specific image highlighting this variant
- *                 example: "https://cloudinary.com/toy-car-red.jpg"
- *               isActive:
+ *                 description: Dimensions (JSON stringified)
+ *                 example: '{"length": 15, "width": 10, "height": 5}'
+ *               status:
+ *                 type: string
+ *                 enum: [active, inactive, out_of_stock]
+ *                 example: "active"
+ *               isDefault:
  *                 type: boolean
- *                 example: true
+ *                 example: false
  *     responses:
  *       201:
  *         description: Variant created successfully
@@ -368,6 +450,7 @@ router.post(
   "/:productId/variants",
   authMiddleware,
   authorizationMiddleware(["admin"]),
+  uploadMultiple("images", 5),
   createVariant,
 );
 
@@ -376,7 +459,7 @@ router.post(
  * /api/products/variants/{variantId}:
  *   put:
  *     summary: Update an existing toy variant
- *     description: Modify details of a specific toy variant like its price, attributes, or image. Note that updating `stock` directly through this endpoint bypasses the InventoryTransaction Ledger and is not recommended for normal stock deductions. (Admin only)
+ *     description: Modify details of a specific toy variant like its price, attributes, or image URLs. Note that updating `stock` directly through this endpoint bypasses the InventoryTransaction Ledger and is not recommended for normal stock deductions. (Admin only)
  *     tags:
  *       - Variants
  *     parameters:
@@ -396,6 +479,9 @@ router.post(
  *               sku:
  *                 type: string
  *                 example: "TOY-CAR-RED-002"
+ *               barcode:
+ *                 type: string
+ *                 example: "1234567890123"
  *               attributes:
  *                 type: object
  *                 example:
@@ -406,9 +492,41 @@ router.post(
  *               originalPrice:
  *                 type: number
  *                 example: 39.99
- *               image:
+ *               stock:
+ *                 type: number
+ *                 example: 50
+ *               lowStockAlert:
+ *                 type: number
+ *                 example: 10
+ *               images:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: "Array of image URLs highlighting this variant"
+ *                 example: ["https://cloudinary.com/toy-car-crimson.jpg"]
+ *               weight:
+ *                 type: number
+ *                 example: 500
+ *               dimensions:
+ *                 type: object
+ *                 properties:
+ *                   length:
+ *                     type: number
+ *                   width:
+ *                     type: number
+ *                   height:
+ *                     type: number
+ *                 example:
+ *                   length: 20
+ *                   width: 10
+ *                   height: 10
+ *               status:
  *                 type: string
- *                 example: "https://cloudinary.com/toy-car-crimson.jpg"
+ *                 enum: [active, inactive, out_of_stock]
+ *                 example: "active"
+ *               isDefault:
+ *                 type: boolean
+ *                 example: false
  *               isActive:
  *                 type: boolean
  *                 example: true
