@@ -12,6 +12,7 @@
     "seed:admin": "ts-node scripts/seedAdmin.ts",
     "seed:data": "ts-node scripts/seedProducts.ts",
     "seed:all": "ts-node scripts/seedAll.ts",
+    "seed:settings": "ts-node scripts/seedSiteSettings.ts",
     "db:vanish": "ts-node scripts/vanishDb.ts"
   },
   "devDependencies": {
