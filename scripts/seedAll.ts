@@ -14,6 +14,11 @@ const runSeedScripts = () => {
     console.log("================================");
     execSync("npx ts-node scripts/seedProducts.ts", { stdio: "inherit" });
 
+    console.log("\n================================");
+    console.log("     Seeding Site Settings      ");
+    console.log("================================");
+    execSync("npx ts-node scripts/seedSiteSettings.ts", { stdio: "inherit" });
+
     console.log("\n✅ All seed scripts completed successfully!");
     process.exit(0);
   } catch (error) {
