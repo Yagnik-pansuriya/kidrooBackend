@@ -6,6 +6,7 @@ import {
   deleteProduct,
   getAllProducts,
   getProductById,
+  getProductFilters,
 } from "../controller/productController";
 import {
   createVariant,
@@ -29,17 +30,75 @@ const router = Router();
 
 /**
  * @swagger
- * /api/products:
+ * /api/products/filters:
  *   get:
- *     summary: Get all products
- *     description: Retrieve a list of all products
+ *     summary: Get metadata for product filters
+ *     description: Returns categories, price ranges, and tags to build filter UIs.
  *     tags:
  *       - Products
  *     responses:
  *       200:
+ *         description: Successfully retrieved filter metadata
+ */
+router.get("/filters", getProductFilters);
+
+/**
+ * @swagger
+ * /api/products:
+ *   get:
+ *     summary: Get all products with search and filters
+ *     description: Retrieve a paginated list of products with optional filters for search, category, price, and status.
+ *     tags:
+ *       - Products
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by name, description, or tags
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Filter by category ID
+ *       - in: query
+ *         name: minPrice
+ *         schema:
+ *           type: number
+ *         description: Minimum price
+ *       - in: query
+ *         name: maxPrice
+ *         schema:
+ *           type: number
+ *         description: Maximum price
+ *       - in: query
+ *         name: featured
+ *         schema:
+ *           type: boolean
+ *         description: Filter for featured products
+ *       - in: query
+ *         name: newArrival
+ *         schema:
+ *           type: boolean
+ *         description: Filter for new arrivals
+ *       - in: query
+ *         name: bestSeller
+ *         schema:
+ *           type: boolean
+ *         description: Filter for best sellers
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
  *         description: Successfully retrieved list of products
- *       500:
- *         description: Server error
  */
 router.get("/", getAllProducts);
 
@@ -459,7 +518,7 @@ router.post(
  * /api/products/variants/{variantId}:
  *   put:
  *     summary: Update an existing toy variant
- *     description: Modify details of a specific toy variant like its price, attributes, or image URLs. Note that updating `stock` directly through this endpoint bypasses the InventoryTransaction Ledger and is not recommended for normal stock deductions. (Admin only)
+ *     description: Modify details of a specific toy variant. Supports image replacement via multipart/form-data. (Admin only)
  *     tags:
  *       - Variants
  *     parameters:
@@ -472,7 +531,7 @@ router.post(
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             properties:
@@ -483,9 +542,9 @@ router.post(
  *                 type: string
  *                 example: "1234567890123"
  *               attributes:
- *                 type: object
- *                 example:
- *                   Color: "Crimson Red"
+ *                 type: string
+ *                 description: Flexible attributes (JSON stringified)
+ *                 example: '{"Color": "Crimson Red"}'
  *               price:
  *                 type: number
  *                 example: 29.99
@@ -502,24 +561,15 @@ router.post(
  *                 type: array
  *                 items:
  *                   type: string
- *                 description: "Array of image URLs highlighting this variant"
- *                 example: ["https://cloudinary.com/toy-car-crimson.jpg"]
+ *                   format: binary
+ *                 description: "Upload new images to replace existing ones (Up to 5)"
  *               weight:
  *                 type: number
  *                 example: 500
  *               dimensions:
- *                 type: object
- *                 properties:
- *                   length:
- *                     type: number
- *                   width:
- *                     type: number
- *                   height:
- *                     type: number
- *                 example:
- *                   length: 20
- *                   width: 10
- *                   height: 10
+ *                 type: string
+ *                 description: Dimensions (JSON stringified)
+ *                 example: '{"length": 20, "width": 10, "height": 10}'
  *               status:
  *                 type: string
  *                 enum: [active, inactive, out_of_stock]
@@ -542,6 +592,7 @@ router.put(
   "/variants/:variantId",
   authMiddleware,
   authorizationMiddleware(["admin"]),
+  uploadMultiple("images", 5),
   updateVariant,
 );
 

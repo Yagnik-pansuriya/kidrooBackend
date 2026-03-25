@@ -89,19 +89,25 @@ export const deleteFromCloudinary = async (
       resource_type: resourceType,
     });
 
-    if (result.result === "ok") {
+    if (result.result === "ok" || result.result === "not found") {
       return {
         success: true,
-        message: "File deleted successfully",
+        message: result.result === "ok" ? "File deleted successfully" : "File already deleted or not found",
       };
     } else {
-      throw new AppError("Failed to delete file from Cloudinary", 500);
+      console.error(`Cloudinary deletion error for ${publicId}:`, result);
+      return {
+        success: false,
+        message: `Failed to delete file: ${result.result}`,
+      };
     }
   } catch (error: any) {
-    throw new AppError(
-      `Error deleting file from Cloudinary: ${error.message}`,
-      500,
-    );
+    console.error(`Error deleting file from Cloudinary (${publicId}):`, error.message);
+    // Don't throw for cleanup operations, just return status
+    return {
+      success: false,
+      message: error.message,
+    };
   }
 };
 
@@ -149,4 +155,25 @@ export const getCloudinaryUrl = (
   const transformationString = transformationParts.join(",");
 
   return `${baseUrl}/${transformationString}/${publicId}`;
+};
+
+/**
+ * Extract public ID from Cloudinary URL
+ * @param url - Cloudinary URL
+ * @returns Public ID or null if not found
+ */
+export const extractPublicId = (url: string) => {
+  try {
+    const uploadIndex = url.indexOf("/upload/");
+    if (uploadIndex === -1) return null;
+    const afterUpload = url.substring(uploadIndex + 8);
+    const withoutVersion = afterUpload.replace(/^v\d+\//, "");
+    const withoutExtension = withoutVersion.substring(
+      0,
+      withoutVersion.lastIndexOf("."),
+    );
+    return withoutExtension || withoutVersion;
+  } catch (e) {
+    return null;
+  }
 };
