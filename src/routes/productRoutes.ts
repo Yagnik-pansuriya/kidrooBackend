@@ -463,7 +463,7 @@ router.get("/:productId/variants", getVariantsByProduct);
  *               attributes:
  *                 type: string
  *                 description: Flexible attributes for the toy variant properly stringified (Color, Size, Material, etc.)
- *                 example: '{"Color": "Red", "Edition": "Collector\'s Edition", "Material": "Wood"}'
+ *                 example: '{"Color": "Red", "Edition": "Collector''s Edition", "Material": "Wood"}'
  *               price:
  *                 type: number
  *                 example: 34.99
@@ -492,7 +492,10 @@ router.get("/:productId/variants", getVariantsByProduct);
  *                 example: '{"length": 15, "width": 10, "height": 5}'
  *               status:
  *                 type: string
- *                 enum: [active, inactive, out_of_stock]
+ *                 enum:
+ *                   - active
+ *                   - inactive
+ *                   - out_of_stock
  *                 example: "active"
  *               isDefault:
  *                 type: boolean
@@ -572,7 +575,10 @@ router.post(
  *                 example: '{"length": 20, "width": 10, "height": 10}'
  *               status:
  *                 type: string
- *                 enum: [active, inactive, out_of_stock]
+ *                 enum:
+ *                   - active
+ *                   - inactive
+ *                   - out_of_stock
  *                 example: "active"
  *               isDefault:
  *                 type: boolean
