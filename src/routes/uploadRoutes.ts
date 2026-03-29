@@ -268,7 +268,10 @@ router.post(
  *         name: resourceType
  *         schema:
  *           type: string
- *           enum: ["image", "video", "raw"]
+ *           enum:
+ *             - image
+ *             - video
+ *             - raw
  *         description: "Type of resource (default: image)"
  *         example: "image"
  *     responses:
@@ -290,7 +293,9 @@ router.post(
  *                   properties:
  *                     result:
  *                       type: string
- *                       enum: ["ok", "not_found"]
+ *                       enum:
+ *                         - ok
+ *                         - not_found
  *                       example: "ok"
  *       400:
  *         description: Public ID is required

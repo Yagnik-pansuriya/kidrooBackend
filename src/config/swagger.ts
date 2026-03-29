@@ -130,7 +130,7 @@ const options = {
       },
     ],
   },
-  apis: ["./src/routes/*.ts", "./src/controller/*.ts"],
+  apis: ["src/routes/*.ts", "src/controller/*.ts"],
 };
 
 let swaggerSpec: SwaggerSpec | any;

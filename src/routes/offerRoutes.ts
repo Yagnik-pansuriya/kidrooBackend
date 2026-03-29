@@ -89,7 +89,11 @@ router.get("/:id", getOfferById);
  *                 type: number
  *               type:
  *                 type: string
- *                 enum: [slider, fullscreen-poster, post, buyable]
+ *                 enum:
+ *                   - slider
+ *                   - fullscreen-poster
+ *                   - post
+ *                   - buyable
  *               targetUrl:
  *                 type: string
  *               couponCode:
@@ -156,7 +160,11 @@ router.post(
  *                 type: number
  *               type:
  *                 type: string
- *                 enum: [slider, fullscreen-poster, post, buyable]
+ *                 enum:
+ *                   - slider
+ *                   - fullscreen-poster
+ *                   - post
+ *                   - buyable
  *               targetUrl:
  *                 type: string
  *               couponCode:
