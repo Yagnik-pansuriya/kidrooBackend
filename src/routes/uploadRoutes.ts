@@ -7,6 +7,8 @@ import {
 } from "../utils/uploadToCloudinary";
 import AppError from "../utils/appError";
 import { Request, Response } from "express";
+import { authMiddleware } from "../middlewares/authMiddleware";
+import { checkPermission } from "../middlewares/permissionMiddleware";
 
 const router = Router();
 
@@ -68,6 +70,8 @@ const router = Router();
  */
 router.post(
   "/single",
+  authMiddleware,
+  checkPermission("/upload"),
   uploadSingle("image"),
   asyncHandler(async (req: Request, res: Response) => {
     if (!req.file) {
@@ -143,6 +147,8 @@ router.post(
  */
 router.post(
   "/multiple",
+  authMiddleware,
+  checkPermission("/upload"),
   uploadMultiple("images", 5),
   asyncHandler(async (req: Request, res: Response) => {
     if (!req.files || (req.files as any[]).length === 0) {
@@ -227,6 +233,8 @@ router.post(
  */
 router.post(
   "/custom",
+  authMiddleware,
+  checkPermission("/upload"),
   uploadSingle("file"),
   asyncHandler(async (req: Request, res: Response) => {
     if (!req.file) {
@@ -304,6 +312,8 @@ router.post(
  */
 router.delete(
   "/:publicId",
+  authMiddleware,
+  checkPermission("/upload"),
   asyncHandler(async (req: Request, res: Response) => {
     const publicId = req.params.publicId as string;
     const resourceType = req.query.resourceType as string | undefined;

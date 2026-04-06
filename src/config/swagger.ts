@@ -82,10 +82,40 @@ const options = {
               format: "date-time",
               description: "User creation date",
             },
-            updatedAt: {
+        },
+      },
+      Permission: {
+        type: "object",
+        properties: {
+          route: {
+            type: "string",
+            example: "/users",
+          },
+          label: {
+            type: "string",
+            example: "User Management",
+          },
+          visible: {
+            type: "boolean",
+            example: true,
+          },
+          enabled: {
+            type: "boolean",
+            example: true,
+          },
+        },
+      },
+        UserPermission: {
+          type: "object",
+          properties: {
+            userId: {
               type: "string",
-              format: "date-time",
-              description: "User update date",
+            },
+            permissions: {
+              type: "array",
+              items: {
+                $ref: "#/components/schemas/Permission",
+              },
             },
           },
         },

@@ -21,6 +21,7 @@ import {
   authorizationMiddleware,
 } from "../middlewares/authMiddleware";
 import { validateRequest } from "../middlewares/validateRequest";
+import { checkPermission } from "../middlewares/permissionMiddleware";
 import {
   createProductSchema,
   updateProductSchema,
@@ -40,7 +41,7 @@ const router = Router();
  *       200:
  *         description: Successfully retrieved filter metadata
  */
-router.get("/filters", getProductFilters);
+router.get("/filters", authMiddleware, checkPermission("/products"), getProductFilters);
 
 /**
  * @swagger
@@ -100,7 +101,7 @@ router.get("/filters", getProductFilters);
  *       200:
  *         description: Successfully retrieved list of products
  */
-router.get("/", getAllProducts);
+router.get("/", authMiddleware, checkPermission("/products"), getAllProducts);
 
 /**
  * @swagger
@@ -125,7 +126,7 @@ router.get("/", getAllProducts);
  *       500:
  *         description: Server error
  */
-router.get("/:id", getProductById);
+router.get("/:id", authMiddleware, checkPermission("/products"), getProductById);
 
 /**
  * @swagger
@@ -234,6 +235,7 @@ router.post(
   "/",
   authMiddleware,
   authorizationMiddleware(["admin"]),
+  checkPermission("/products"),
   uploadMultiple("images", 5), // Name matches form field, max 5 files
   validateRequest(createProductSchema),
   createProduct,
@@ -318,6 +320,7 @@ router.put(
   "/:id",
   authMiddleware,
   authorizationMiddleware(["admin"]),
+  checkPermission("/products"),
   uploadMultiple("images", 5),
   validateRequest(updateProductSchema),
   updateProduct,
@@ -348,6 +351,7 @@ router.delete(
   "/:id",
   authMiddleware,
   authorizationMiddleware(["admin"]),
+  checkPermission("/products"),
   deleteProduct,
 );
 
@@ -426,7 +430,7 @@ router.delete(
  *       400:
  *         description: Invalid Product ID format
  */
-router.get("/:productId/variants", getVariantsByProduct);
+router.get("/:productId/variants", authMiddleware, checkPermission("/products"), getVariantsByProduct);
 
 /**
  * @swagger
@@ -512,6 +516,7 @@ router.post(
   "/:productId/variants",
   authMiddleware,
   authorizationMiddleware(["admin"]),
+  checkPermission("/products"),
   uploadMultiple("images", 5),
   createVariant,
 );
@@ -598,6 +603,7 @@ router.put(
   "/variants/:variantId",
   authMiddleware,
   authorizationMiddleware(["admin"]),
+  checkPermission("/products"),
   uploadMultiple("images", 5),
   updateVariant,
 );
@@ -629,6 +635,7 @@ router.delete(
   "/variants/:variantId",
   authMiddleware,
   authorizationMiddleware(["admin"]),
+  checkPermission("/products"),
   deleteVariant,
 );
 

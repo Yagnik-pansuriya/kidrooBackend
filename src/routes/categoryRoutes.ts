@@ -9,6 +9,7 @@ import {
 import { upload } from "../middlewares/upload.middleware";
 import { authMiddleware, authorizationMiddleware } from "../middlewares/authMiddleware";
 import { validateRequest } from "../middlewares/validateRequest";
+import { checkPermission } from "../middlewares/permissionMiddleware";
 import { createCategorySchema, updateCategorySchema } from "../utils/validators/categoryValidators";
 
 const router = Router();
@@ -23,7 +24,7 @@ const router = Router();
  *       200:
  *         description: Successfully retrieved categories
  */
-router.get("/", getAllCategories);
+router.get("/", authMiddleware, checkPermission("/categories"), getAllCategories);
 
 /**
  * @swagger
@@ -41,7 +42,7 @@ router.get("/", getAllCategories);
  *       200:
  *         description: Successfully retrieved category
  */
-router.get("/:id", getCategoryById);
+router.get("/:id", authMiddleware, checkPermission("/categories"), getCategoryById);
 
 /**
  * @swagger
@@ -79,6 +80,7 @@ router.post(
   authMiddleware,
   authorizationMiddleware(["admin"]),
   upload.fields([{ name: "image", maxCount: 1 }, { name: "icon", maxCount: 1 }]),
+  checkPermission("/categories"),
   validateRequest(createCategorySchema),
   createCategory
 );
@@ -122,6 +124,7 @@ router.put(
   authMiddleware,
   authorizationMiddleware(["admin"]),
   upload.fields([{ name: "image", maxCount: 1 }, { name: "icon", maxCount: 1 }]),
+  checkPermission("/categories"),
   validateRequest(updateCategorySchema),
   updateCategory
 );
@@ -146,6 +149,7 @@ router.delete(
   "/:id",
   authMiddleware,
   authorizationMiddleware(["admin"]),
+  checkPermission("/categories"),
   deleteCategory
 );
 

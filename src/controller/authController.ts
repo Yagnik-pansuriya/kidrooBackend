@@ -19,6 +19,7 @@ import {
 import AppError from "../utils/appError";
 import User from "../models/user";
 import { authService } from "../services/authService";
+import { PermissionService } from "../services/permissionService";
 
 /**
  * User Login
@@ -59,6 +60,8 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
+  const permissions = await PermissionService.getPermissions(user._id.toString());
+
   return sendSuccessResponse(
     res,
     200,
@@ -69,6 +72,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
       email: user.email,
       userName: user.userName,
       role: user.role,
+      permissions,
     },
     { accessToken, refreshToken },
   );
@@ -103,7 +107,11 @@ export const getCurrentUser = asyncHandler(
       throw new AppError("User not found", 404);
     }
 
-    return sendSuccessResponse(res, 200, "User retrieved successfully", user);
+    const permissions = await PermissionService.getPermissions(user._id.toString());
+    const userData = user.toObject();
+    (userData as any).permissions = permissions;
+
+    return sendSuccessResponse(res, 200, "User retrieved successfully", userData);
   },
 );
 
@@ -143,11 +151,13 @@ export const refreshAccessToken = asyncHandler(
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days for refresh token
     });
 
+    const permissions = await PermissionService.getPermissions(user._id.toString());
+
     return sendSuccessResponse(
       res,
       200,
       "Token refreshed successfully",
-      { id: user._id, email: user.email, role: user.role },
+      { id: user._id, email: user.email, role: user.role, permissions },
       { accessToken: newAccessToken, refreshToken: newRefreshToken },
     );
   },
