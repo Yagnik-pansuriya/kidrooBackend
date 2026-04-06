@@ -2,7 +2,7 @@ import User from "../models/user";
 
 class AuthService {
   async getUserByEmail(email: string) {
-    const user = await User.findOne({ email }).select("+password");
+    const user = await User.findOne({ email: email.toLowerCase().trim() }).select("+password");
     return user;
   };
 

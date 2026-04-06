@@ -50,16 +50,25 @@ export class UserService {
       throw new AppError("Invalid user ID", 400);
     }
 
-    const user = await User.findByIdAndUpdate(userId, updateData, {
-      new: true,
-      runValidators: true,
-    }).select("-password");
+    const user = await User.findById(userId);
 
     if (!user) {
       throw new AppError("User not found", 404);
     }
 
-    return user;
+    // Update fields manually so that pre-save hooks (password hashing) fire
+    if (updateData.name !== undefined) user.name = updateData.name;
+    if (updateData.userName !== undefined) user.userName = updateData.userName;
+    if (updateData.email !== undefined) user.email = updateData.email;
+    if (updateData.role !== undefined) user.role = updateData.role;
+    if (updateData.password) user.password = updateData.password;
+
+    await user.save();
+
+    // Return without password
+    const result = user.toObject();
+    delete result.password;
+    return result;
   }
 
   /**
