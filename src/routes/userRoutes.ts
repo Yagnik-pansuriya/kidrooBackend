@@ -7,8 +7,8 @@ import { checkPermission } from "../middlewares/permissionMiddleware";
 
 const router = Router();
 
-// All user management routes are protected: only admins can manage users
-router.use(authMiddleware, authorizationMiddleware(["admin"]), checkPermission("/users"));
+// All user routes require auth + admin role
+router.use(authMiddleware, authorizationMiddleware(["admin"]));
 
 /**
  * @swagger
@@ -68,7 +68,7 @@ router.get("/:id", UserController.getUser);
  *       201:
  *         description: User created successfully
  */
-router.post("/", validateRequest(createUserSchema), UserController.createUser);
+router.post("/", checkPermission("/users"), validateRequest(createUserSchema), UserController.createUser);
 
 /**
  * @swagger
@@ -98,7 +98,7 @@ router.post("/", validateRequest(createUserSchema), UserController.createUser);
  *       200:
  *         description: User updated successfully
  */
-router.put("/:id", validateRequest(updateUserSchema), UserController.updateUser);
+router.put("/:id", checkPermission("/users"), validateRequest(updateUserSchema), UserController.updateUser);
 
 /**
  * @swagger
@@ -116,6 +116,6 @@ router.put("/:id", validateRequest(updateUserSchema), UserController.updateUser)
  *       200:
  *         description: User deleted successfully
  */
-router.delete("/:id", UserController.deleteUser);
+router.delete("/:id", checkPermission("/users"), UserController.deleteUser);
 
 export default router;

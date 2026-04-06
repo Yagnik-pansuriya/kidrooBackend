@@ -41,7 +41,7 @@ const router = Router();
  *       200:
  *         description: Successfully retrieved filter metadata
  */
-router.get("/filters", authMiddleware, checkPermission("/products"), getProductFilters);
+router.get("/filters", getProductFilters);
 
 /**
  * @swagger
@@ -101,7 +101,7 @@ router.get("/filters", authMiddleware, checkPermission("/products"), getProductF
  *       200:
  *         description: Successfully retrieved list of products
  */
-router.get("/", authMiddleware, checkPermission("/products"), getAllProducts);
+router.get("/", getAllProducts);
 
 /**
  * @swagger
@@ -126,7 +126,7 @@ router.get("/", authMiddleware, checkPermission("/products"), getAllProducts);
  *       500:
  *         description: Server error
  */
-router.get("/:id", authMiddleware, checkPermission("/products"), getProductById);
+router.get("/:id", getProductById);
 
 /**
  * @swagger
@@ -430,7 +430,7 @@ router.delete(
  *       400:
  *         description: Invalid Product ID format
  */
-router.get("/:productId/variants", authMiddleware, checkPermission("/products"), getVariantsByProduct);
+router.get("/:productId/variants", getVariantsByProduct);
 
 /**
  * @swagger

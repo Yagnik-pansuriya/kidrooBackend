@@ -23,7 +23,7 @@ const router = Router();
  *       500:
  *         description: Server error
  */
-router.get("/", authMiddleware, checkPermission("/site-settings"), getSettings);
+router.get("/", getSettings);
 
 /**
  * @swagger

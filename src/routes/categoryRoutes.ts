@@ -24,7 +24,7 @@ const router = Router();
  *       200:
  *         description: Successfully retrieved categories
  */
-router.get("/", authMiddleware, checkPermission("/categories"), getAllCategories);
+router.get("/", getAllCategories);
 
 /**
  * @swagger
@@ -42,7 +42,7 @@ router.get("/", authMiddleware, checkPermission("/categories"), getAllCategories
  *       200:
  *         description: Successfully retrieved category
  */
-router.get("/:id", authMiddleware, checkPermission("/categories"), getCategoryById);
+router.get("/:id", getCategoryById);
 
 /**
  * @swagger

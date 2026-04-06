@@ -41,7 +41,7 @@ const router = Router();
  *       500:
  *         description: Server error
  */
-router.get("/", authMiddleware, checkPermission("/offers"), getAllOffers);
+router.get("/", getAllOffers);
 
 /**
  * @swagger
@@ -65,7 +65,7 @@ router.get("/", authMiddleware, checkPermission("/offers"), getAllOffers);
  *       500:
  *         description: Server error
  */
-router.get("/:id", authMiddleware, checkPermission("/offers"), getOfferById);
+router.get("/:id", getOfferById);
 
 /**
  * @swagger

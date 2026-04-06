@@ -7,13 +7,14 @@ import { permissionSchema, checkAccessSchema } from "../utils/validators/permiss
 
 const router = Router();
 
-// Get list of available routes for dropdown (Admin only)
+// ── GET routes: available to any authenticated admin (no permission check) ──
+
 /**
  * @swagger
  * /api/permissions/routes:
  *   get:
  *     summary: Get all configurable routes for dropdowns
- *     description: Retrieve a list of all routes that can have permissions assigned. (Admin only)
+ *     description: Retrieve a list of all routes that can have permissions assigned. (Admin only, no permission check)
  *     tags: [Permissions]
  *     security:
  *       - bearerAuth: []
@@ -21,24 +22,6 @@ const router = Router();
  *     responses:
  *       200:
  *         description: Successfully retrieved route list
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 message:
- *                   type: string
- *                 data:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       route:
- *                         type: string
- *                       label:
- *                         type: string
  */
 router.get(
   "/routes",
@@ -47,7 +30,31 @@ router.get(
   PermissionController.getRouteList
 );
 
-// Only admins should be able to update/get full permissions
+/**
+ * @swagger
+ * /api/permissions/{userId}:
+ *   get:
+ *     summary: Get permissions for a specific user
+ *     tags: [Permissions]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved user permissions
+ */
+router.get(
+  "/:userId",
+  authMiddleware,
+  authorizationMiddleware(["admin"]),
+  PermissionController.getPermissions
+);
+
+// ── Write routes: require permission check ──────────────────────────────────
+
 /**
  * @swagger
  * /api/permissions/{userId}:
@@ -89,32 +96,6 @@ router.put(
 
 /**
  * @swagger
- * /api/permissions/{userId}:
- *   get:
- *     summary: Get permissions for a specific user
- *     tags: [Permissions]
- *     parameters:
- *       - in: path
- *         name: userId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Successfully retrieved user permissions
- */
-router.get(
-  "/:userId",
-  authMiddleware,
-  authorizationMiddleware(["admin"]),
-  checkPermission("/permissions"),
-  PermissionController.getPermissions
-);
-
-// This could be used by frontend or internal services
-// If it's for the current user, we can extract userId from JWT, but the requirement specifically says userId in body.
-/**
- * @swagger
  * /api/permissions/check:
  *   post:
  *     summary: Check if a user has access to a specific route
@@ -137,13 +118,6 @@ router.get(
  *     responses:
  *       200:
  *         description: Check completed
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 allowed:
- *                   type: boolean
  */
 router.post(
   "/check",
@@ -153,7 +127,6 @@ router.post(
   PermissionController.checkAccess
 );
 
-// Optional: patch a single permission
 /**
  * @swagger
  * /api/permissions/{userId}:
