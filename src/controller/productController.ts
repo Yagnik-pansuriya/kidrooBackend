@@ -10,6 +10,7 @@ import fs from "fs";
 import { CacheService } from "../services/redisCacheService";
 import { sendSuccessResponse } from "../utils/apiResponse";
 import { productService } from "../services/productService";
+import { variantService } from "../services/variantService";
 import mongoose from "mongoose";
 import Product from "../models/products";
 
@@ -188,12 +189,32 @@ export const createProduct = asyncHandler(
       ageRange,
       tags,
       isActive: isActive === "true" || isActive === true,
-      hasVariants: hasVariants === "true" || hasVariants === true,
+      hasVariants: true,
     } as any);
+
+    // ── Auto-create a default variant ──────────────────────────────
+    const autoSku = `${(slug || productName || "PROD").toUpperCase().replace(/[^A-Z0-9]/g, "-").slice(0, 20)}-DEFAULT`;
+    await variantService.createVariant({
+      product: product._id as any,
+      sku: autoSku,
+      attributes: new Map([["Type", "Default"]]) as any,
+      price: Number(price),
+      originalPrice: originalPrice ? Number(originalPrice) : undefined,
+      stock: Number(stock) || 0,
+      images: imageUrls,
+      status: "active",
+      isDefault: true,
+    });
 
     await CacheService.delPattern("products:*");
 
-    return sendSuccessResponse(res, 201, "Product created", product);
+    // Re-fetch with variants populated so the response includes the auto-created variant
+    const populatedProduct = await productService.getProductById(
+      (product._id as any).toString(),
+      true
+    );
+
+    return sendSuccessResponse(res, 201, "Product created", populatedProduct);
   },
 );
 

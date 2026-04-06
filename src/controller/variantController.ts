@@ -46,16 +46,29 @@ export const createVariant = asyncHandler(
     const {
       sku,
       barcode,
-      attributes,
       price,
       originalPrice,
       stock,
       lowStockAlert,
       weight,
-      dimensions,
       status,
       isDefault,
     } = req.body;
+
+    // FormData sends objects as JSON strings — parse them back
+    const parseField = (field: any) => {
+      if (typeof field === "string") {
+        try { return JSON.parse(field); } catch { return field; }
+      }
+      return field;
+    };
+
+    const attributes = parseField(req.body.attributes);
+    const dimensions = parseField(req.body.dimensions);
+
+    // Sanitize status — only allow valid enum values
+    const validStatuses = ["active", "inactive", "out_of_stock"];
+    const safeStatus = validStatuses.includes(status) ? status : "active";
 
     const files = req.files as Express.Multer.File[] | undefined;
 
@@ -94,7 +107,7 @@ export const createVariant = asyncHandler(
       weight,
       dimensions,
       images: imageUrls,
-      status: status || "active",
+      status: safeStatus,
       isDefault: isDefault || false,
     });
 
@@ -153,6 +166,12 @@ export const updateVariant = asyncHandler(
           if (publicId) await deleteFromCloudinary(publicId, "image");
         }
       }
+    }
+
+    // Sanitize status if provided
+    const validStatuses = ["active", "inactive", "out_of_stock"];
+    if (updateData.status && !validStatuses.includes(updateData.status)) {
+      updateData.status = "active";
     }
 
     const finalUpdateData: any = {
