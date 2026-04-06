@@ -5,6 +5,8 @@ import productRoutes from "./productRoutes";
 import categoryRoutes from "./categoryRoutes";
 import offerRoutes from "./offerRoutes";
 import siteSettingsRoutes from "./siteSettingsRoutes";
+import permissionRoutes from "./permissionRoutes";
+import userRoutes from "./userRoutes";
 
 const router = Router();
 
@@ -14,5 +16,7 @@ router.use("/products", productRoutes);
 router.use("/categories", categoryRoutes);
 router.use("/offers", offerRoutes);
 router.use("/site-settings", siteSettingsRoutes);
+router.use("/permissions", permissionRoutes);
+router.use("/users", userRoutes);
 
 export default router;

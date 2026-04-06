@@ -7,9 +7,16 @@ import {
   getOfferById,
 } from "../controller/offerController";
 import { uploadMultiple } from "../middlewares/upload.middleware";
-import { authMiddleware, authorizationMiddleware } from "../middlewares/authMiddleware";
+import {
+  authMiddleware,
+  authorizationMiddleware,
+} from "../middlewares/authMiddleware";
 import { validateRequest } from "../middlewares/validateRequest";
-import { createOfferSchema, updateOfferSchema } from "../utils/validators/offerValidators";
+import { checkPermission } from "../middlewares/permissionMiddleware";
+import {
+  createOfferSchema,
+  updateOfferSchema,
+} from "../utils/validators/offerValidators";
 
 const router = Router();
 
@@ -34,7 +41,7 @@ const router = Router();
  *       500:
  *         description: Server error
  */
-router.get("/", getAllOffers);
+router.get("/", authMiddleware, checkPermission("/offers"), getAllOffers);
 
 /**
  * @swagger
@@ -58,7 +65,7 @@ router.get("/", getAllOffers);
  *       500:
  *         description: Server error
  */
-router.get("/:id", getOfferById);
+router.get("/:id", authMiddleware, checkPermission("/offers"), getOfferById);
 
 /**
  * @swagger
@@ -124,9 +131,10 @@ router.post(
   "/",
   authMiddleware,
   authorizationMiddleware(["admin"]),
+  checkPermission("/offers"),
   uploadMultiple("images", 5),
   validateRequest(createOfferSchema),
-  createOffer
+  createOffer,
 );
 
 /**
@@ -193,9 +201,10 @@ router.put(
   "/:id",
   authMiddleware,
   authorizationMiddleware(["admin"]),
+  checkPermission("/offers"),
   uploadMultiple("images", 5),
   validateRequest(updateOfferSchema),
-  updateOffer
+  updateOffer,
 );
 
 /**
@@ -222,7 +231,8 @@ router.delete(
   "/:id",
   authMiddleware,
   authorizationMiddleware(["admin"]),
-  deleteOffer
+  checkPermission("/offers"),
+  deleteOffer,
 );
 
 export default router;

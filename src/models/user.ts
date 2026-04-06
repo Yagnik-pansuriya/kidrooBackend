@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import { hashPassword, comparePassword } from "../utils/password";
+import UserPermission from "./userPermission";
 
 interface IUser extends mongoose.Document {
   name: string;
@@ -102,6 +103,23 @@ userSchema.methods.toJSON = function () {
   delete obj.password;
   return obj;
 };
+
+// Post-save hook to create default permissions
+userSchema.post<IUser>("save", async function (doc, next) {
+  try {
+    const existing = await UserPermission.findOne({ userId: doc._id });
+    if (!existing) {
+      await UserPermission.create({
+        userId: doc._id,
+        permissions: [] 
+      });
+    }
+    next();
+  } catch (error) {
+    console.error("Error creating default permissions:", error);
+    next();
+  }
+});
 
 const User = mongoose.model<IUser>("User", userSchema);
 

@@ -5,6 +5,7 @@ import {
   authMiddleware,
   authorizationMiddleware,
 } from "../middlewares/authMiddleware";
+import { checkPermission } from "../middlewares/permissionMiddleware";
 
 const router = Router();
 
@@ -22,7 +23,7 @@ const router = Router();
  *       500:
  *         description: Server error
  */
-router.get("/", getSettings);
+router.get("/", authMiddleware, checkPermission("/site-settings"), getSettings);
 
 /**
  * @swagger
@@ -73,6 +74,7 @@ router.put(
   "/",
   authMiddleware,
   authorizationMiddleware(["admin"]),
+  checkPermission("/site-settings"),
   uploadSingle("logo"),
   updateSettings,
 );
