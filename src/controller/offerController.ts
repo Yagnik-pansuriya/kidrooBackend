@@ -86,7 +86,11 @@ export const createOffer = asyncHandler(
       targetUrl,
       couponCode,
       bgColor,
-      textColor
+      textColor,
+      offerTag,
+      offerCategory,
+      isFeatured,
+      couponDescription
     } = req.body;
 
     // Type validation
@@ -153,6 +157,10 @@ export const createOffer = asyncHandler(
       couponCode,
       bgColor,
       textColor,
+      offerTag,
+      offerCategory: offerCategory || "all-deals",
+      isFeatured: isFeatured === "true" || isFeatured === true,
+      couponDescription,
       image: imageUrls.length > 0 ? imageUrls : undefined,
     });
 
@@ -200,7 +208,11 @@ export const updateOffer = asyncHandler(
       targetUrl,
       couponCode,
       bgColor,
-      textColor
+      textColor,
+      offerTag,
+      offerCategory,
+      isFeatured,
+      couponDescription
     } = req.body;
 
     const allowedTypes = ["slider", "fullscreen-poster", "post", "buyable"];
@@ -252,7 +264,14 @@ export const updateOffer = asyncHandler(
       couponCode,
       bgColor,
       textColor,
+      offerTag,
+      offerCategory,
+      couponDescription,
     };
+
+    if (isFeatured !== undefined) {
+      updateData.isFeatured = isFeatured === "true" || isFeatured === true;
+    }
 
     if (isActive !== undefined) {
       updateData.isActive = isActive === "true" || isActive === true;

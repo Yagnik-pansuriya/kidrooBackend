@@ -19,6 +19,10 @@ interface IOffer extends mongoose.Document {
   };
   bgColor?: string;
   textColor?: string;
+  offerTag?: string;
+  offerCategory?: "all-deals" | "flash-sale" | "clearance";
+  isFeatured?: boolean;
+  couponDescription?: string;
 }
 
 const offerSchema = new mongoose.Schema<IOffer>({
@@ -68,7 +72,22 @@ const offerSchema = new mongoose.Schema<IOffer>({
   },
   textColor: {
     type: String,
-  }
+  },
+  offerTag: {
+    type: String,
+  },
+  offerCategory: {
+    type: String,
+    enum: ["all-deals", "flash-sale", "clearance"],
+    default: "all-deals",
+  },
+  isFeatured: {
+    type: Boolean,
+    default: false,
+  },
+  couponDescription: {
+    type: String,
+  },
 
 },{ timestamps: true });
 
