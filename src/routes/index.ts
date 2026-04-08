@@ -7,6 +7,9 @@ import offerRoutes from "./offerRoutes";
 import siteSettingsRoutes from "./siteSettingsRoutes";
 import permissionRoutes from "./permissionRoutes";
 import userRoutes from "./userRoutes";
+import newsletterRoutes from "./newsletterRoutes";
+import reviewRoutes from "./reviewRoutes";
+import bannerRoutes from "./bannerRoutes";
 
 const router = Router();
 
@@ -18,5 +21,8 @@ router.use("/offers", offerRoutes);
 router.use("/site-settings", siteSettingsRoutes);
 router.use("/permissions", permissionRoutes);
 router.use("/users", userRoutes);
+router.use("/newsletter", newsletterRoutes);
+router.use("/reviews", reviewRoutes);
+router.use("/banners", bannerRoutes);
 
 export default router;
