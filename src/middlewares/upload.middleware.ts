@@ -1,6 +1,7 @@
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 import { Request, Response, NextFunction } from "express";
 import AppError from "../utils/appError";
 
@@ -11,14 +12,15 @@ if (!fs.existsSync(uploadDir)) {
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, uploadDir); // Temporary directory
+    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(
-      null,
-      file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname),
-    );
+    // Use high-resolution timer + crypto random to guarantee uniqueness
+    // even when multiple files arrive in the same millisecond (same request)
+    const [, nsec] = process.hrtime();
+    const rand = crypto.randomBytes(8).toString("hex");
+    const uniqueSuffix = `${Date.now()}-${nsec}-${rand}`;
+    cb(null, file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname));
   },
 });
 

@@ -84,6 +84,11 @@ app.use(
 app.use(hpp());
 
 app.use((req, res, next) => {
+  // Only sanitize JSON body payloads — multipart/form-data is parsed by Multer
+  // and the raw string fields (like attributes JSON) must reach controllers intact.
+  const ct = req.headers["content-type"] || "";
+  if (!ct.includes("application/json")) return next();
+
   const sanitizeValue = (value: any): any => {
     if (typeof value === "string") {
       return value.replace(/\$/g, "_").replace(/\./g, "_");
@@ -103,7 +108,6 @@ app.use((req, res, next) => {
   };
 
   if (req.body) req.body = sanitizeValue(req.body);
-  if (req.params) req.params = sanitizeValue(req.params);
   next();
 });
 

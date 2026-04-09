@@ -105,31 +105,6 @@ router.get("/", getAllProducts);
 
 /**
  * @swagger
- * /api/products/{id}:
- *   get:
- *     summary: Get a product by ID
- *     description: Retrieve a single product by its database ID
- *     tags:
- *       - Products
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         example: "60dfssdf0f8sfsklfdfss"
- *     responses:
- *       200:
- *         description: Successfully retrieved the product
- *       404:
- *         description: Product not found
- *       500:
- *         description: Server error
- */
-router.get("/:id", getProductById);
-
-/**
- * @swagger
  * /api/products:
  *   post:
  *     summary: Create a new product with images
@@ -356,79 +331,16 @@ router.delete(
 );
 
 // --- Product Variants Routes --- //
+// IMPORTANT: These MUST be registered before /:id to prevent Express from
+// matching "variants" as a product id parameter.
 
 /**
  * @swagger
  * /api/products/{productId}/variants:
  *   get:
  *     summary: Get all variants for a product
- *     description: Retrieve all active variants (sizes, colors, editions) for a specific toy.
  *     tags:
  *       - Variants
- *     parameters:
- *       - in: path
- *         name: productId
- *         required: true
- *         schema:
- *           type: string
- *         description: The ID of the base Toy Product
- *         example: "60dfssdf0f8sfsklfdfss"
- *     responses:
- *       200:
- *         description: List of variants retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 message:
- *                   type: string
- *                 data:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       _id:
- *                         type: string
- *                       product:
- *                         type: string
- *                       sku:
- *                         type: string
- *                       barcode:
- *                         type: string
- *                       attributes:
- *                         type: object
- *                       price:
- *                         type: number
- *                       originalPrice:
- *                         type: number
- *                       stock:
- *                         type: number
- *                       lowStockAlert:
- *                         type: number
- *                       images:
- *                         type: array
- *                         items:
- *                           type: string
- *                       weight:
- *                         type: number
- *                       dimensions:
- *                         type: object
- *                         properties:
- *                           length:
- *                             type: number
- *                           width:
- *                             type: number
- *                           height:
- *                             type: number
- *                       status:
- *                         type: string
- *                       isDefault:
- *                         type: boolean
- *       400:
- *         description: Invalid Product ID format
  */
 router.get("/:productId/variants", getVariantsByProduct);
 
@@ -520,6 +432,29 @@ router.post(
   uploadMultiple("images", 5),
   createVariant,
 );
+
+// ── Now register the generic single-product GET (after all specific sub-routes) ──
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   get:
+ *     summary: Get a product by ID
+ *     description: Retrieve a single product by its database ID
+ *     tags:
+ *       - Products
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved the product
+ *       404:
+ *         description: Product not found
+ */
+router.get("/:id", getProductById);
 
 /**
  * @swagger
