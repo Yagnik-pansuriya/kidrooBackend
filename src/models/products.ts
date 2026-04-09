@@ -6,19 +6,19 @@ export interface IProduct {
   description: string;
   price: number;
   originalPrice: number;
-  discountPercentage: number;
+  discountPercentage?: number;
   stock: number;
-  category: mongoose.Schema.Types.ObjectId;
+  category?: mongoose.Schema.Types.ObjectId;
   image: string;
   images: string[];
-  ratings: number;
-  numReviews: number;
-  featured: boolean;
-  newArrival: boolean;
-  bestSeller: boolean;
-  ageRange: {
-    from: number;
-    to: number;
+  ratings?: number;
+  numReviews?: number;
+  featured?: boolean;
+  newArrival?: boolean;
+  bestSeller?: boolean;
+  ageRange?: {
+    from?: number;
+    to?: number;
   };
   tags: string[];
   isActive: boolean;
@@ -35,6 +35,7 @@ const productSchema = new mongoose.Schema<IProduct>(
     slug: {
       type: String,
       required: true,
+      unique: true,
     },
     description: {
       type: String,
@@ -50,7 +51,8 @@ const productSchema = new mongoose.Schema<IProduct>(
     },
     discountPercentage: {
       type: Number,
-      required: true,
+      required: false,
+      default: 0,
     },
     stock: {
       type: Number,
@@ -70,32 +72,37 @@ const productSchema = new mongoose.Schema<IProduct>(
     },
     ratings: {
       type: Number,
-      required: true,
+      required: false,
+      default: 0,
     },
     numReviews: {
       type: Number,
-      required: true,
+      required: false,
+      default: 0,
     },
     featured: {
       type: Boolean,
-      required: true,
+      required: false,
+      default: false,
     },
     newArrival: {
       type: Boolean,
-      required: true,
+      required: false,
+      default: false,
     },
     bestSeller: {
       type: Boolean,
-      required: true,
+      required: false,
+      default: false,
     },
     ageRange: {
       from: {
         type: Number,
-        required: true,
+        required: false,
       },
       to: {
         type: Number,
-        required: true,
+        required: false,
       },
     },
     tags: {

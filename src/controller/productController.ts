@@ -139,14 +139,21 @@ export const createProduct = asyncHandler(
       throw new AppError("Slug already exists", 400);
     }
 
+    const parsedPrice = Number(price) || 0;
+    const parsedOriginalPrice = originalPrice ? Number(originalPrice) : parsedPrice;
+    let parsedStock = Number(stock) || 0;
+    
+    // Check final hasVariants
+    const finalHasVariants = hasVariants === undefined ? true : (hasVariants === "true" || hasVariants === true);
+
     // Discount calculate
     const discountPercentage =
-      originalPrice > 0
-        ? Math.round(((originalPrice - price) / originalPrice) * 100)
+      parsedOriginalPrice > 0 && parsedOriginalPrice > parsedPrice
+        ? Math.round(((parsedOriginalPrice - parsedPrice) / parsedOriginalPrice) * 100)
         : 0;
 
     // Stock rule: if hasVariants, stock is handled by variants
-    if (hasVariants) stock = 0;
+    if (finalHasVariants) parsedStock = 0;
 
     // Handle image uploads
     const files = req.files as Express.Multer.File[];
@@ -174,10 +181,10 @@ export const createProduct = asyncHandler(
       productName,
       slug,
       description,
-      price,
-      originalPrice,
+      price: parsedPrice,
+      originalPrice: parsedOriginalPrice,
       discountPercentage,
-      stock,
+      stock: parsedStock,
       category,
       image: imageUrls[0],
       images: imageUrls,
@@ -189,7 +196,7 @@ export const createProduct = asyncHandler(
       ageRange,
       tags,
       isActive: isActive === "true" || isActive === true,
-      hasVariants: true,
+      hasVariants: finalHasVariants,
     } as any);
 
     // ── Auto-create a default variant ──────────────────────────────
@@ -198,15 +205,15 @@ export const createProduct = asyncHandler(
       product: product._id as any,
       sku: autoSku,
       attributes: new Map([["Type", "Default"]]) as any,
-      price: Number(price),
-      originalPrice: originalPrice ? Number(originalPrice) : undefined,
-      stock: Number(stock) || 0,
+      price: parsedPrice,
+      originalPrice: parsedOriginalPrice,
+      stock: Number(stock) || 0, // Variant gets the actual stock amount
       images: imageUrls,
       status: "active",
       isDefault: true,
     });
 
-    await CacheService.delPattern("products:*");
+    await CacheService.delPattern("products:page:*");
 
     // Re-fetch with variants populated so the response includes the auto-created variant
     const populatedProduct = await productService.getProductById(
@@ -293,37 +300,39 @@ export const updateProduct = asyncHandler(
       productName,
       slug,
       description,
-      price,
-      originalPrice,
-      stock,
       category,
-      featured,
-      newArrival,
-      bestSeller,
       ageRange,
       tags,
-      isActive,
-      hasVariants,
     };
+
+    if (featured !== undefined) updateData.featured = featured === "true" || featured === true;
+    if (newArrival !== undefined) updateData.newArrival = newArrival === "true" || newArrival === true;
+    if (bestSeller !== undefined) updateData.bestSeller = bestSeller === "true" || bestSeller === true;
+    if (isActive !== undefined) updateData.isActive = isActive === "true" || isActive === true;
+    if (hasVariants !== undefined) updateData.hasVariants = hasVariants === "true" || hasVariants === true;
+    if (stock !== undefined) updateData.stock = Number(stock) || 0;
 
     if (imageUrls.length > 0) {
       updateData.image = imageUrls[0];
       updateData.images = imageUrls;
     }
 
-    // Calculate discount if prices changed
+    // Replace undefined variables with properties from req.body or existing Product if needed, particularly for pricing
     if (price !== undefined || originalPrice !== undefined) {
-      const p = price ?? existingProduct.price;
-      const op = originalPrice ?? existingProduct.originalPrice;
-      updateData.discountPercentage = op > 0 ? Math.round(((op - p) / op) * 100) : 0;
+      const p = price !== undefined ? Number(price) : existingProduct.price;
+      const op = originalPrice !== undefined ? Number(originalPrice) : existingProduct.originalPrice;
+      updateData.price = p;
+      updateData.originalPrice = op;
+      updateData.discountPercentage = op > 0 && op > p ? Math.round(((op - p) / op) * 100) : 0;
     }
 
     // Enforce variants rule
-    if (hasVariants === true || hasVariants === "true") updateData.stock = 0;
+    const finalHasVariants = hasVariants !== undefined ? updateData.hasVariants : existingProduct.hasVariants;
+    if (finalHasVariants) updateData.stock = 0;
 
     const product = await productService.updateProduct(id, updateData);
 
-    await CacheService.delPattern("products:*");
+    await CacheService.delPattern("products:page:*");
     await CacheService.del(`product:${id}`);
 
     return sendSuccessResponse(res, 200, "Product updated successfully", product);
@@ -342,7 +351,7 @@ export const deleteProduct = asyncHandler(
       throw new AppError("Product not found", 404);
     }
 
-    await CacheService.delPattern("products:*");
+    await CacheService.delPattern("products:page:*");
     await CacheService.del(`product:${id}`);
 
     return sendSuccessResponse(res, 200, "Product deleted successfully", null);

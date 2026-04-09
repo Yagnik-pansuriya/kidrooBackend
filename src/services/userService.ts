@@ -8,7 +8,7 @@ export class UserService {
    * Get all users
    */
   static async getAllUsers() {
-    return await User.find().select("-password");
+    return await User.find().select("-password").lean();
   }
 
   /**
@@ -18,7 +18,7 @@ export class UserService {
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       throw new AppError("Invalid user ID", 400);
     }
-    const user = await User.findById(userId).select("-password");
+    const user = await User.findById(userId).select("-password").lean();
     if (!user) {
       throw new AppError("User not found", 404);
     }
@@ -66,8 +66,7 @@ export class UserService {
     await user.save();
 
     // Return without password
-    const result = user.toObject();
-    delete result.password;
+    const { password, ...result } = user.toObject();
     return result;
   }
 

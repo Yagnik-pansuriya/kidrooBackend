@@ -7,7 +7,7 @@ class ReviewService {
   async getProductReviews(productId: string, onlyApproved = true) {
     const filter: any = { product: productId };
     if (onlyApproved) filter.isApproved = true;
-    return await Review.find(filter).sort({ createdAt: -1 });
+    return await Review.find(filter).sort({ createdAt: -1 }).lean();
   }
 
   // Get review stats for a product
@@ -67,8 +67,10 @@ class ReviewService {
   // Get all reviews (admin — across all products)
   async getAllReviews() {
     return await Review.find()
-      .populate("product", "productName slug images")
-      .sort({ createdAt: -1 });
+      .populate("user", "name email")
+      .populate("product", "productName slug")
+      .sort({ createdAt: -1 })
+      .lean();
   }
 
   // Recalculate product rating
