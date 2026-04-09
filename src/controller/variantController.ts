@@ -55,16 +55,26 @@ export const createVariant = asyncHandler(
       isDefault,
     } = req.body;
 
-    // FormData sends objects as JSON strings — parse them back
-    const parseField = (field: any) => {
+    // FormData sends objects as JSON strings — parse them back safely
+    const parseJsonField = (field: any) => {
+      if (field === undefined || field === null || field === "") return undefined;
+      if (typeof field === "object") return field; // already parsed
       if (typeof field === "string") {
-        try { return JSON.parse(field); } catch { return field; }
+        try { return JSON.parse(field); } catch { return undefined; }
       }
-      return field;
+      return undefined;
     };
 
-    const attributes = parseField(req.body.attributes);
-    const dimensions = parseField(req.body.dimensions);
+    const attributes = parseJsonField(req.body.attributes);
+    const dimensions = parseJsonField(req.body.dimensions);
+
+    // Validate attributes
+    if (!attributes || typeof attributes !== "object" || Array.isArray(attributes)) {
+      throw new AppError(
+        "attributes is required and must be a JSON object, e.g. {\"Color\":\"Red\",\"Size\":\"Large\"}",
+        400
+      );
+    }
 
     // Sanitize status — only allow valid enum values
     const validStatuses = ["active", "inactive", "out_of_stock"];
@@ -72,37 +82,34 @@ export const createVariant = asyncHandler(
 
     const files = req.files as Express.Multer.File[] | undefined;
 
-    // Check if product exists first (redundant as service does it but good for early exit/validation)
+    // Check if product exists first
     const product = await productService.getProductById(productId);
     if (!product) {
       throw new AppError("Product not found", 404);
     }
 
-    // Upload images
+    // Upload all images to Cloudinary in PARALLEL (faster, no sequential timeout risk)
     let imageUrls: string[] = [];
     if (files && files.length > 0) {
-      for (const file of files) {
-        try {
+      imageUrls = await Promise.all(
+        files.map(async (file) => {
           const result = await uploadToCloudinary(file.path, {
             folder: "kidroo/variants",
             resource_type: "image",
           });
-          imageUrls.push(result.url);
-        } catch (error) {
-          if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-          throw error;
-        }
-      }
+          return result.url;
+        })
+      );
     }
 
     const variant = await variantService.createVariant({
       product: productId as any,
-      sku,
+      sku: String(sku || "").trim().toUpperCase(),
       barcode,
       attributes,
-      price: Number(price) || 0,
+      price: Number(price),
       originalPrice: originalPrice ? Number(originalPrice) : undefined,
-      stock: stock ? Number(stock) : 0,
+      stock: stock !== undefined ? Number(stock) : 0,
       lowStockAlert: lowStockAlert ? Number(lowStockAlert) : undefined,
       weight: weight ? Number(weight) : undefined,
       dimensions,
@@ -116,6 +123,7 @@ export const createVariant = asyncHandler(
     return sendSuccessResponse(res, 201, "Variant created", variant);
   },
 );
+
 
 export const updateVariant = asyncHandler(
   async (req: Request, res: Response) => {
@@ -142,32 +150,66 @@ export const updateVariant = asyncHandler(
       throw new AppError("Variant not found", 404);
     }
 
+    // Upload all new images to Cloudinary in PARALLEL
     const files = req.files as Express.Multer.File[] | undefined;
-    let imageUrls: string[] = [];
-
+    let newImageUrls: string[] = [];
     if (files && files.length > 0) {
-      for (const file of files) {
-        try {
+
+      newImageUrls = await Promise.all(
+        files.map(async (file) => {
           const result = await uploadToCloudinary(file.path, {
             folder: "kidroo/variants",
             resource_type: "image",
           });
-          imageUrls.push(result.url);
-        } catch (error) {
-          if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-          throw error;
+          return result.url;
+        })
+      );
+    }
+
+    // Parse existing image URLs the client wants to KEEP
+    const parseJsonField = (field: any) => {
+      if (!field) return null;
+      if (Array.isArray(field)) return field;
+      if (typeof field === "string") {
+        try { return JSON.parse(field); } catch { return null; }
+      }
+      return null;
+    };
+    const existingImages: string[] | null = parseJsonField(req.body.existingImages);
+
+    // Decide the final images array
+    let finalImages: string[] | undefined;
+    if (existingImages !== null) {
+      // Client sent explicit keep list — merge with new uploads
+      finalImages = [...existingImages, ...newImageUrls];
+    } else if (newImageUrls.length > 0) {
+      // No keep list but new files uploaded — replace (old behaviour)
+      finalImages = newImageUrls;
+    }
+    // else: no changes to images at all
+
+    // Delete from Cloudinary any old images that are NOT in the keep list
+    if (existingVariant.images?.length && existingImages !== null) {
+      for (const imgUrl of existingVariant.images) {
+        if (!existingImages.includes(imgUrl)) {
+          const publicId = extractPublicId(imgUrl);
+          if (publicId) {
+            try { await deleteFromCloudinary(publicId, "image"); }
+            catch (e) { console.warn("Could not delete old image:", imgUrl); }
+          }
         }
       }
-
-      // Cleanup old images
-      if (existingVariant.images?.length) {
-        for (const imgUrl of existingVariant.images) {
-          const publicId = extractPublicId(imgUrl);
-          if (publicId) await deleteFromCloudinary(publicId, "image");
-        }
+    } else if (newImageUrls.length > 0 && existingVariant.images?.length) {
+      // Old behaviour: full replacement — delete all old images
+      for (const imgUrl of existingVariant.images) {
+        const publicId = extractPublicId(imgUrl);
+        if (publicId) await deleteFromCloudinary(publicId, "image");
       }
     }
 
+
+
+    // Sanitize status if provided
     const validStatuses = ["active", "inactive", "out_of_stock"];
     if (updateData.status && !validStatuses.includes(updateData.status)) {
       updateData.status = "active";
@@ -182,6 +224,7 @@ export const updateVariant = asyncHandler(
 
     const finalUpdateData: any = {
       ...updateData,
+      stock,       // include stock if provided
       attributes,
       dimensions,
     };

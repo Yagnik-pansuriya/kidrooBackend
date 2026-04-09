@@ -55,9 +55,11 @@ const productVariantSchema = new Schema<IProductVariant>(
     },
 
     attributes: {
-      type: Map,
-      of: String,
+      // Store as plain object (Mixed) so Object.keys()/entries() work
+      // correctly on both the document and .lean() result.
+      type: Schema.Types.Mixed,
       required: true,
+      default: {},
     },
 
     price: {
@@ -110,7 +112,9 @@ const productVariantSchema = new Schema<IProductVariant>(
   { timestamps: true },
 );
 
-productVariantSchema.index({ product: 1, attributes: 1 }, { unique: true });
+// NOTE: Do NOT add a unique index on attributes here — MongoDB cannot reliably
+// compare arbitrary mixed/object fields for uniqueness. The SKU field is
+// already unique and serves as the deduplication key.
 
 const ProductVariant = mongoose.model<IProductVariant>(
   "ProductVariant",

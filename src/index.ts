@@ -36,6 +36,23 @@ const startServer = async () => {
   await connectDB();
   await connectRedis();
 
+  // ── Startup migration: drop the legacy { product, attributes } unique index ──
+  // This index was removed from the schema but MongoDB doesn't auto-drop it.
+  // It was blocking creation of more than one variant per product.
+  try {
+    const mongoose = await import("mongoose");
+    const db = mongoose.default.connection.db;
+    if (db) {
+      await db.collection("productvariants").dropIndex("product_1_attributes_1");
+      console.log("✅ Dropped legacy variant compound index (product_1_attributes_1)");
+    }
+  } catch (err: any) {
+    // Index might not exist (already dropped or never created) — that's fine
+    if (err?.codeName !== "IndexNotFound" && err?.code !== 27) {
+      console.warn("⚠️  Could not drop legacy variant index:", err?.message);
+    }
+  }
+
   server.listen(PORT, () => {
     console.log(`\nServer running on port ${PORT}`);
     // if (!isProduction) {
@@ -44,6 +61,7 @@ const startServer = async () => {
     // }
   });
 };
+
 
 startServer();
 
