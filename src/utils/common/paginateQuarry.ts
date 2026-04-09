@@ -28,7 +28,8 @@ export const paginateQuery = async ({
     .skip(skip)
     .limit(limit)
     .sort(sort)
-    .select(select);
+    .select(select)
+    .lean();
 
   if (populate.length) {
     populate.forEach((p) => {

@@ -2,7 +2,7 @@ import Offer from "../models/offers";
 
 class OfferService {
   async getAllOffers() {
-    const offers = await Offer.find().sort({ createdAt: -1 });
+    const offers = await Offer.find().sort({ createdAt: -1 }).lean();
     return offers;
   }
 
@@ -13,12 +13,12 @@ class OfferService {
       isActive: true,
       "validity.from": { $lte: now },
       "validity.to": { $gte: now }
-    }).sort({ createdAt: -1 });
+    }).sort({ createdAt: -1 }).lean();
     return offers;
   }
 
   async getOfferById(id: string) {
-    const offer = await Offer.findById(id);
+    const offer = await Offer.findById(id).lean();
     return offer;
   }
 

@@ -17,14 +17,14 @@ class VariantService {
       filter.status = "active";
     }
 
-    const variants = await ProductVariant.find(filter);
+    const variants = await ProductVariant.find(filter).lean();
     console.log(`Fetched ${variants.length} variants for product ${productId} (isAdmin: ${isAdmin})`);
     
     return variants;
   }
 
   async getVariantById(id: string) {
-    return await ProductVariant.findById(id);
+    return await ProductVariant.findById(id).lean();
   }
 
   async createVariant(variantData: Partial<IProductVariant>) {

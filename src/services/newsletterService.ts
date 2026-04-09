@@ -18,7 +18,7 @@ class NewsletterService {
   }
 
   async getAll() {
-    return await Newsletter.find().sort({ subscribedAt: -1 });
+    return await Newsletter.find().sort({ subscribedAt: -1 }).lean();
   }
 
   async getStats() {

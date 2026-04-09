@@ -2,15 +2,15 @@ import Banner from "../models/banner";
 
 class BannerService {
   async getAllBanners() {
-    return Banner.find().sort({ order: 1, createdAt: -1 });
+    return Banner.find().sort({ order: 1, createdAt: -1 }).lean();
   }
 
   async getActiveBanners() {
-    return Banner.find({ isActive: true }).sort({ order: 1, createdAt: -1 });
+    return Banner.find({ isActive: true }).sort({ order: 1, createdAt: -1 }).lean();
   }
 
   async getBannerById(id: string) {
-    return Banner.findById(id);
+    return Banner.findById(id).lean();
   }
 
   async createBanner(data: any) {

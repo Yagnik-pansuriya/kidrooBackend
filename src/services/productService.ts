@@ -109,7 +109,7 @@ class ProductService {
     const product = await Product.findById(id).populate("category").populate({
       path: "variants",
       match: variantMatch
-    });
+    }).lean();
     return product;
   }
 

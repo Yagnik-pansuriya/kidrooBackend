@@ -89,3 +89,71 @@ process.on("unhandledRejection", (reason, promise) => {
   console.error("Unhandled Rejection at:", promise, "reason:", reason);
   process.exit(1);
 });
+
+
+
+
+
+
+
+
+
+// Act as a senior backend architect and code auditor.
+
+// Your task is to deeply analyze my existing backend project and verify that the entire system is logically correct, fully utilized, and production-ready.
+
+// Do NOT give surface-level feedback. Perform strict validation.
+
+// Focus on the following:
+
+// 1. FULL FLOW VERIFICATION
+// - Trace every API from entry (route) → controller → service → database → response
+// - Ensure request → processing → response cycle is complete and consistent
+// - Identify broken, unused, or partially implemented flows
+// - Detect missing validations or inconsistent logic between layers
+
+// 2. UNUSED & DEAD CODE DETECTION
+// - Find unused functions, variables, files, and routes
+// - Detect redundant logic or duplicate implementations
+// - Highlight code that is written but never executed
+
+// 3. API CONTRACT VALIDATION
+// - Verify request body, params, query handling
+// - Check response structure consistency across APIs
+// - Ensure proper status codes and error handling
+
+// 4. DATA FLOW & DATABASE INTEGRITY
+// - Validate schema usage and relationships
+// - Check if all DB queries are necessary and optimized
+// - Detect over-fetching, under-fetching, or missing indexes
+
+// 5. AUTHENTICATION & SECURITY
+// - Verify token handling, middleware flow
+// - Check protected routes are actually protected
+// - Detect security vulnerabilities (JWT misuse, missing validation, etc.)
+
+// 6. EDGE CASE & FAILURE HANDLING
+// - Identify missing try/catch or error boundaries
+// - Check how system behaves on invalid input, DB failure, or network issues
+
+// 7. PERFORMANCE & SCALABILITY
+// - Detect blocking operations
+// - Check async handling correctness
+// - Identify potential bottlenecks
+
+// 8. CODE CONSISTENCY & STRUCTURE
+// - Ensure proper separation of concerns (controller/service/repo)
+// - Detect tight coupling or poor modularization
+
+// 9. FINAL OUTPUT FORMAT (STRICT)
+// - List CRITICAL issues (must fix)
+// - List LOGICAL flaws
+// - List UNUSED / DEAD code
+// - List PERFORMANCE issues
+// - Provide EXACT fixes (code-level suggestions, not theory)
+
+// Important:
+// - Do NOT explain basics
+// - Do NOT praise anything
+// - Only point out flaws, risks, and improvements
+// - Be brutally strict and precise
