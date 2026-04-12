@@ -8,13 +8,13 @@ import { customerService } from "../services/customerService";
 /**
  * Customer Signup
  * POST /api/customer/auth/signup
- * Creates account + sends OTP for mobile verification
+ * Stores data in memory + sends OTP email. Does NOT save to DB until verified.
  */
 export const signup = asyncHandler(async (req: Request, res: Response) => {
   const { firstName, lastName, mobile, password, email, alternatePhone } = req.body;
 
-  if (!firstName || !lastName || !mobile || !password) {
-    throw new AppError("First name, last name, mobile, and password are required", 400);
+  if (!firstName || !lastName || !mobile || !password || !email) {
+    throw new AppError("First name, last name, mobile, email, and password are required", 400);
   }
 
   const result = await customerService.signup({
@@ -26,7 +26,12 @@ export const signup = asyncHandler(async (req: Request, res: Response) => {
     alternatePhone,
   });
 
-  return sendSuccessResponse(res, 201, "Account created. Please verify your mobile number with the OTP sent.", result);
+  return sendSuccessResponse(
+    res,
+    200,
+    "OTP sent to your email. Please verify to complete registration.",
+    result
+  );
 });
 
 /**
@@ -34,13 +39,13 @@ export const signup = asyncHandler(async (req: Request, res: Response) => {
  * POST /api/customer/auth/send-otp
  */
 export const sendOTP = asyncHandler(async (req: Request, res: Response) => {
-  const { mobile } = req.body;
+  const { mobile, email } = req.body;
 
   if (!mobile) {
     throw new AppError("Mobile number is required", 400);
   }
 
-  const result = await customerService.sendOTP(mobile);
+  const result = await customerService.sendOTP(mobile, email);
 
   return sendSuccessResponse(res, 200, "OTP sent successfully", result);
 });
@@ -87,7 +92,7 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
   return sendSuccessResponse(
     res,
     200,
-    "Mobile verified successfully",
+    "Account verified successfully! Welcome to Kidroo!",
     {
       customer: customer.toJSON(),
       accessToken,

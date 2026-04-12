@@ -1,6 +1,37 @@
 import Customer from "../models/customer";
 import AppError from "../utils/appError";
+import { sendOTPEmail } from "../utils/mailer";
 import mongoose from "mongoose";
+
+// ═══════════════════════════════════════════════════════════════
+// TEMPORARY OTP STORE
+// Holds signup data in memory until OTP is verified.
+// After verification the customer is persisted to MongoDB.
+// Entries auto-expire after 10 minutes.
+// ═══════════════════════════════════════════════════════════════
+interface PendingSignup {
+  firstName: string;
+  lastName: string;
+  mobile: string;
+  password: string;
+  email?: string;
+  alternatePhone?: string;
+  otp: string;
+  otpExpiry: Date;
+  createdAt: Date;
+}
+
+const pendingSignups = new Map<string, PendingSignup>();
+
+// Clean up expired entries every 5 minutes
+setInterval(() => {
+  const now = new Date();
+  for (const [key, entry] of pendingSignups.entries()) {
+    if (now > entry.otpExpiry) {
+      pendingSignups.delete(key);
+    }
+  }
+}, 5 * 60 * 1000);
 
 class CustomerService {
   // ── OTP ───────────────────────────────────────────────────────
@@ -8,44 +39,127 @@ class CustomerService {
     return Math.floor(100000 + Math.random() * 900000).toString();
   }
 
-  // ── Send OTP (step 1 of signup / login recovery) ─────────────
-  async sendOTP(mobile: string) {
-    // Validate mobile format
-    if (!/^[6-9]\d{9}$/.test(mobile)) {
+  // ═════════════════════ SIGNUP (no DB save) ═════════════════════
+
+  /**
+   * Step 1: Collect signup data, generate OTP, send via email.
+   * Does NOT save customer to DB yet.
+   */
+  async signup(data: {
+    firstName: string;
+    lastName: string;
+    mobile: string;
+    password: string;
+    email?: string;
+    alternatePhone?: string;
+  }) {
+    // Validate mobile
+    if (!/^[6-9]\d{9}$/.test(data.mobile)) {
       throw new AppError("Invalid mobile number format", 400);
     }
 
+    // Email is required for OTP delivery
+    if (!data.email) {
+      throw new AppError("Email is required to receive the verification OTP", 400);
+    }
+
+    // Check if mobile already exists and is verified
+    const existing = await Customer.findOne({ mobile: data.mobile });
+    if (existing && existing.isVerified) {
+      throw new AppError("An account with this mobile number already exists", 400);
+    }
+
+    // Check email uniqueness (only against verified accounts)
+    const emailExists = await Customer.findOne({
+      email: data.email.toLowerCase(),
+      isVerified: true,
+    });
+    if (emailExists) {
+      throw new AppError("An account with this email already exists", 400);
+    }
+
+    // If an unverified DB record exists, remove it (clean slate)
+    if (existing && !existing.isVerified) {
+      await Customer.deleteOne({ _id: existing._id });
+    }
+
+    // Generate OTP
     const otp = this.generateOTP();
     const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-    // Check if customer already exists
-    let customer = await Customer.findOne({ mobile }).select("+otp +otpExpiry");
+    // Store in memory — NOT in database
+    pendingSignups.set(data.mobile, {
+      firstName: data.firstName,
+      lastName: data.lastName,
+      mobile: data.mobile,
+      password: data.password,
+      email: data.email.toLowerCase(),
+      alternatePhone: data.alternatePhone,
+      otp,
+      otpExpiry,
+      createdAt: new Date(),
+    });
 
-    if (customer) {
-      // Update OTP for existing customer
-      customer.otp = otp;
-      customer.otpExpiry = otpExpiry;
-      await customer.save({ validateModifiedOnly: true });
+    // Send OTP via email
+    try {
+      await sendOTPEmail(data.email, otp, data.firstName);
+    } catch (err: any) {
+      pendingSignups.delete(data.mobile);
+      throw new AppError(err.message || "Failed to send OTP email", 500);
     }
 
-    // In production, integrate with SMS gateway (e.g., Twilio, MSG91)
-    // For now we'll return the OTP in dev mode for testing
-    console.log(`[OTP] Mobile: ${mobile} → OTP: ${otp}`);
+    console.log(`[OTP] Signup for ${data.mobile} → OTP sent to ${data.email}`);
 
     return {
-      exists: !!customer,
-      isVerified: customer?.isVerified || false,
-      // Only return OTP in development for testing
-      ...(process.env.NODE_ENV !== "production" ? { otp } : {}),
+      message: `OTP sent to ${data.email}`,
+      mobile: data.mobile,
+      email: data.email,
     };
   }
 
-  // ── Verify OTP ────────────────────────────────────────────────
+  // ═════════════════════ VERIFY OTP ═════════════════════════════
+
+  /**
+   * Step 2: Verify OTP.
+   * If from signup (pending in memory) → create customer in DB.
+   * If from resend-otp for existing customer → verify them.
+   */
   async verifyOTP(mobile: string, otp: string) {
+    // 1. Check pending signups (in-memory)
+    const pending = pendingSignups.get(mobile);
+
+    if (pending) {
+      if (new Date() > pending.otpExpiry) {
+        pendingSignups.delete(mobile);
+        throw new AppError("OTP has expired. Please sign up again.", 400);
+      }
+
+      if (pending.otp !== otp) {
+        throw new AppError("Invalid OTP", 400);
+      }
+
+      // OTP is correct — NOW save to database
+      const customer = await Customer.create({
+        firstName: pending.firstName,
+        lastName: pending.lastName,
+        mobile: pending.mobile,
+        password: pending.password,
+        email: pending.email,
+        alternatePhone: pending.alternatePhone,
+        isVerified: true,
+      });
+
+      // Clean up memory
+      pendingSignups.delete(mobile);
+
+      return customer;
+    }
+
+    // 2. Check existing customer in DB (for resend-otp flow)
     const customer = await Customer.findOne({ mobile }).select("+otp +otpExpiry");
 
     if (!customer) {
-      throw new AppError("No account found with this mobile number", 404);
+      throw new AppError("No account found with this mobile number. Please sign up.", 404);
     }
 
     if (!customer.otp || !customer.otpExpiry) {
@@ -69,67 +183,62 @@ class CustomerService {
     return customer;
   }
 
-  // ── Signup (create customer) ──────────────────────────────────
-  async signup(data: {
-    firstName: string;
-    lastName: string;
-    mobile: string;
-    password: string;
-    email?: string;
-    alternatePhone?: string;
-  }) {
-    // Check if mobile already exists
-    const existing = await Customer.findOne({ mobile: data.mobile });
-    if (existing && existing.isVerified) {
-      throw new AppError("An account with this mobile number already exists", 400);
+  // ═════════════════════ SEND / RESEND OTP ═════════════════════
+
+  /**
+   * Resend OTP for pending signup or existing unverified customer.
+   */
+  async sendOTP(mobile: string, email?: string) {
+    if (!/^[6-9]\d{9}$/.test(mobile)) {
+      throw new AppError("Invalid mobile number format", 400);
     }
 
-    // Check email uniqueness if provided
-    if (data.email) {
-      const emailExists = await Customer.findOne({ email: data.email.toLowerCase() });
-      if (emailExists) {
-        throw new AppError("An account with this email already exists", 400);
-      }
-    }
-
-    // Generate OTP
     const otp = this.generateOTP();
     const otpExpiry = new Date(Date.now() + 5 * 60 * 1000);
 
-    if (existing && !existing.isVerified) {
-      // Update unverified account
-      existing.firstName = data.firstName;
-      existing.lastName = data.lastName;
-      existing.password = data.password;
-      existing.email = data.email;
-      existing.alternatePhone = data.alternatePhone;
-      existing.otp = otp;
-      existing.otpExpiry = otpExpiry;
-      await existing.save();
+    // Check pending signups first
+    const pending = pendingSignups.get(mobile);
+    if (pending) {
+      pending.otp = otp;
+      pending.otpExpiry = otpExpiry;
 
-      console.log(`[OTP] Signup mobile: ${data.mobile} → OTP: ${otp}`);
+      // Re-send email
+      const targetEmail = pending.email || email;
+      if (targetEmail) {
+        await sendOTPEmail(targetEmail, otp, pending.firstName);
+      }
+
+      console.log(`[OTP] Resend for pending ${mobile} → ${targetEmail}`);
+      return { message: `OTP resent to ${targetEmail}` };
+    }
+
+    // Check existing customer
+    const customer = await Customer.findOne({ mobile }).select("+otp +otpExpiry");
+
+    if (customer) {
+      customer.otp = otp;
+      customer.otpExpiry = otpExpiry;
+      await customer.save({ validateModifiedOnly: true });
+
+      // Send email
+      const targetEmail = customer.email || email;
+      if (targetEmail) {
+        await sendOTPEmail(targetEmail, otp, customer.firstName);
+      }
+
+      console.log(`[OTP] Resend for existing ${mobile} → ${targetEmail}`);
       return {
-        customerId: existing._id,
-        ...(process.env.NODE_ENV !== "production" ? { otp } : {}),
+        exists: true,
+        isVerified: customer.isVerified,
+        message: `OTP resent to ${targetEmail}`,
       };
     }
 
-    const customer = await Customer.create({
-      ...data,
-      otp,
-      otpExpiry,
-      isVerified: false,
-    });
-
-    console.log(`[OTP] Signup mobile: ${data.mobile} → OTP: ${otp}`);
-
-    return {
-      customerId: customer._id,
-      ...(process.env.NODE_ENV !== "production" ? { otp } : {}),
-    };
+    throw new AppError("No account found. Please sign up first.", 404);
   }
 
-  // ── Login ─────────────────────────────────────────────────────
+  // ═════════════════════ LOGIN ═════════════════════════════════
+
   async login(mobile: string, password: string) {
     const customer = await Customer.findOne({ mobile }).select("+password");
 
@@ -138,7 +247,7 @@ class CustomerService {
     }
 
     if (!customer.isVerified) {
-      throw new AppError("Please verify your mobile number first", 403);
+      throw new AppError("Please verify your account first", 403);
     }
 
     if (!customer.isActive) {
@@ -157,7 +266,8 @@ class CustomerService {
     return customer;
   }
 
-  // ── Get profile ───────────────────────────────────────────────
+  // ═════════════════════ PROFILE MANAGEMENT ═════════════════════
+
   async getProfile(customerId: string) {
     const customer = await Customer.findById(customerId)
       .populate("wishlist", "productName images price originalPrice")
@@ -170,7 +280,6 @@ class CustomerService {
     return customer;
   }
 
-  // ── Update profile ────────────────────────────────────────────
   async updateProfile(
     customerId: string,
     data: {
@@ -205,22 +314,26 @@ class CustomerService {
     return customer;
   }
 
-  // ── Change password ───────────────────────────────────────────
   async changePassword(
     customerId: string,
     currentPassword: string,
     newPassword: string
   ) {
     const customer = await Customer.findById(customerId).select("+password");
-    if (!customer) throw new AppError("Customer not found", 404);
+
+    if (!customer) {
+      throw new AppError("Customer not found", 404);
+    }
 
     const isMatch = await customer.comparePassword(currentPassword);
-    if (!isMatch) throw new AppError("Current password is incorrect", 401);
+    if (!isMatch) {
+      throw new AppError("Current password is incorrect", 400);
+    }
 
     customer.password = newPassword;
     await customer.save();
 
-    return true;
+    return { message: "Password changed successfully" };
   }
 
   // ═════════════════════ ADDRESS MANAGEMENT ═════════════════════
@@ -229,8 +342,9 @@ class CustomerService {
     const customer = await Customer.findById(customerId);
     if (!customer) throw new AppError("Customer not found", 404);
 
+    // Max 5 addresses
     if (customer.addresses.length >= 5) {
-      throw new AppError("You can add a maximum of 5 addresses", 400);
+      throw new AppError("Maximum 5 addresses allowed. Please delete one first.", 400);
     }
 
     // If this is the first address or marked as default, set it as default
@@ -302,42 +416,46 @@ class CustomerService {
     const customer = await Customer.findById(customerId);
     if (!customer) throw new AppError("Customer not found", 404);
 
-    const objectId = new mongoose.Types.ObjectId(productId);
-    const index = customer.wishlist.findIndex(
-      (id) => id.toString() === productId
+    const idx = customer.wishlist.findIndex(
+      (id: any) => id.toString() === productId
     );
 
     let action: "added" | "removed";
 
-    if (index > -1) {
-      customer.wishlist.splice(index, 1);
+    if (idx > -1) {
+      customer.wishlist.splice(idx, 1);
       action = "removed";
     } else {
-      customer.wishlist.push(objectId);
+      customer.wishlist.push(new mongoose.Types.ObjectId(productId) as any);
       action = "added";
     }
 
     await customer.save();
-    return { action, wishlist: customer.wishlist };
+
+    return {
+      action,
+      wishlist: customer.wishlist,
+    };
   }
 
   async getWishlist(customerId: string) {
     const customer = await Customer.findById(customerId)
-      .populate("wishlist", "productName images price originalPrice discountPercentage category stock")
+      .populate("wishlist", "productName images price originalPrice stock discountPercentage")
       .lean();
 
     if (!customer) throw new AppError("Customer not found", 404);
+
     return customer.wishlist;
   }
 
   async clearWishlist(customerId: string) {
-    const customer = await Customer.findByIdAndUpdate(
-      customerId,
-      { $set: { wishlist: [] } },
-      { new: true }
-    );
+    const customer = await Customer.findById(customerId);
     if (!customer) throw new AppError("Customer not found", 404);
-    return [];
+
+    customer.wishlist = [];
+    await customer.save();
+
+    return { message: "Wishlist cleared" };
   }
 }
 

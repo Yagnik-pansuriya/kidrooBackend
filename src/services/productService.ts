@@ -53,7 +53,7 @@ class ProductService {
       model: Product,
       query: query,
       filter: filter,
-      sort: sort || { createdAt: -1 },
+      sort: sort || { position: 1, createdAt: -1 },
       populate: ["category", "variants"]
     });
   }
