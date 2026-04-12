@@ -28,7 +28,7 @@ class VariantService {
 
 
   async getVariantById(id: string) {
-    return await ProductVariant.findById(id);
+    return await ProductVariant.findById(id).lean();
   }
 
 

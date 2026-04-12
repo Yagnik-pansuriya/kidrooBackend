@@ -2,12 +2,12 @@ import Category from "../models/categories";
 
 class CategoryService {
   async getAllCategories() {
-    const categories = await Category.find().sort({ position: 1, _id: 1 });
+    const categories = await Category.find().sort({ position: 1, _id: 1 }).lean();
     return categories;
   }
 
   async getCategoryById(id: string) {
-    const category = await Category.findById(id);
+    const category = await Category.findById(id).lean();
     return category;
   }
 

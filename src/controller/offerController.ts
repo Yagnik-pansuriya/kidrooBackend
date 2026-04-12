@@ -1,74 +1,66 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../utils/asyncHandler";
 import AppError from "../utils/appError";
-import { uploadToCloudinary, deleteFromCloudinary } from "../utils/uploadToCloudinary";
+import { uploadToCloudinary, deleteFromCloudinary, extractPublicId } from "../utils/uploadToCloudinary";
 import fs from "fs";
 import { CacheService } from "../services/redisCacheService";
 import { sendErrorResponse, sendSuccessResponse } from "../utils/apiResponse";
 import { offerService } from "../services/offerService";
 import mongoose from "mongoose";
 
-// Helper to extract Cloudinary public_id from secure URL
-const extractPublicId = (url: string) => {
-  try {
-    const uploadIndex = url.indexOf("/upload/");
-    if (uploadIndex === -1) return null;
-    const afterUpload = url.substring(uploadIndex + 8);
-    const withoutVersion = afterUpload.replace(/^v\d+\//, "");
-    const withoutExtension = withoutVersion.substring(0, withoutVersion.lastIndexOf("."));
-    return withoutExtension || withoutVersion;
-  } catch(e) { return null; }
-};
-
 /**
  * Get All Offers
  * GET /api/offers
  */
-export const getAllOffers = async (req: Request, res: Response) => {
-  const { activeOnly } = req.query;
-  const cacheKey = activeOnly === "true" ? "offers:active" : "offers:all";
+export const getAllOffers = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { activeOnly } = req.query;
+    const cacheKey = activeOnly === "true" ? "offers:active" : "offers:all";
 
-  const cachedOffers = await CacheService.get(cacheKey);
+    const cachedOffers = await CacheService.get(cacheKey);
 
-  if (cachedOffers) {
-    return sendSuccessResponse(res, 200, "Offers fetched successfully", cachedOffers);
+    if (cachedOffers) {
+      return sendSuccessResponse(res, 200, "Offers fetched successfully", cachedOffers);
+    }
+
+    let offers;
+    if (activeOnly === "true") {
+      offers = await offerService.getActiveOffers();
+    } else {
+      offers = await offerService.getAllOffers();
+    }
+
+    await CacheService.set(cacheKey, offers);
+
+    return sendSuccessResponse(res, 200, "Offers fetched successfully", offers);
   }
+);
 
-  let offers;
-  if (activeOnly === "true") {
-    offers = await offerService.getActiveOffers();
-  } else {
-    offers = await offerService.getAllOffers();
+export const getOfferById = asyncHandler(
+  async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    
+    if (!mongoose.isValidObjectId(id)) {
+      throw new AppError("Invalid offer ID format", 400);
+    }
+
+    const cacheKey = `offer:${id}`;
+    const cachedOffer = await CacheService.get(cacheKey);
+
+    if (cachedOffer) {
+      return sendSuccessResponse(res, 200, "Offer fetched successfully", cachedOffer);
+    }
+
+    const offer = await offerService.getOfferById(id);
+    if (!offer) {
+      throw new AppError("Offer not found", 404);
+    }
+
+    await CacheService.set(cacheKey, offer);
+
+    return sendSuccessResponse(res, 200, "Offer fetched successfully", offer);
   }
-
-  await CacheService.set(cacheKey, offers);
-
-  return sendSuccessResponse(res, 200, "Offers fetched successfully", offers);
-};
-
-export const getOfferById = async (req: Request, res: Response) => {
-  const id = req.params.id as string;
-  
-  if (!mongoose.isValidObjectId(id)) {
-    return sendErrorResponse(res, 400, "Invalid offer ID format");
-  }
-
-  const cacheKey = `offer:${id}`;
-  const cachedOffer = await CacheService.get(cacheKey);
-
-  if (cachedOffer) {
-    return sendSuccessResponse(res, 200, "Offer fetched successfully", cachedOffer);
-  }
-
-  const offer = await offerService.getOfferById(id);
-  if (!offer) {
-    return sendErrorResponse(res, 404, "Offer not found");
-  }
-
-  await CacheService.set(cacheKey, offer);
-
-  return sendSuccessResponse(res, 200, "Offer fetched successfully", offer);
-};
+);
 
 /**
  * Create a new offer
@@ -149,7 +141,7 @@ export const createOffer = asyncHandler(
       title,
       subtitle,
       description,
-      discountPercentage,
+      discountPercentage: discountPercentage ? Number(discountPercentage) : undefined,
       validity,
       isActive: isActive !== undefined ? isActive === "true" || isActive === true : true,
       type,
@@ -257,7 +249,6 @@ export const updateOffer = asyncHandler(
       title,
       subtitle,
       description,
-      discountPercentage,
       validity,
       type,
       targetUrl,
@@ -268,6 +259,10 @@ export const updateOffer = asyncHandler(
       offerCategory,
       couponDescription,
     };
+
+    if (discountPercentage !== undefined) {
+      updateData.discountPercentage = Number(discountPercentage);
+    }
 
     if (isFeatured !== undefined) {
       updateData.isFeatured = isFeatured === "true" || isFeatured === true;

@@ -217,6 +217,13 @@ export const updateVariant = asyncHandler(
       updateData.status = "active";
     }
 
+    if (updateData.price !== undefined) updateData.price = Number(updateData.price);
+    if (updateData.originalPrice !== undefined) updateData.originalPrice = Number(updateData.originalPrice);
+    if (stock !== undefined) updateData.stock = Number(stock);
+    if (updateData.lowStockAlert !== undefined) updateData.lowStockAlert = Number(updateData.lowStockAlert);
+    if (updateData.weight !== undefined) updateData.weight = Number(updateData.weight);
+    if (updateData.isDefault !== undefined) updateData.isDefault = updateData.isDefault === "true" || updateData.isDefault === true;
+
     const finalUpdateData: any = {
       ...updateData,
       stock,       // include stock if provided
@@ -224,10 +231,13 @@ export const updateVariant = asyncHandler(
       dimensions,
     };
 
-    if (finalImages !== undefined) {
-      finalUpdateData.images = finalImages;
+    if (stock !== undefined) {
+      finalUpdateData.stock = Number(stock);
     }
 
+    if (finalImages && finalImages.length > 0) {
+      finalUpdateData.images = finalImages;
+    }
 
     const variant = await variantService.updateVariant(variantId, finalUpdateData);
 
