@@ -8,13 +8,16 @@ import {
   toggleReviewApproval,
 } from "../controller/reviewController";
 import { authMiddleware, authorizationMiddleware } from "../middlewares/authMiddleware";
+import { customerAuthMiddleware } from "../middlewares/customerAuthMiddleware";
 
 const router = Router();
 
 // ── Public routes ─────────────────────────────────────────────
 router.get("/product/:productId", getProductReviews);
 router.get("/product/:productId/stats", getProductStats);
-router.post("/product/:productId", addReview);
+
+// ── Customer-only routes ──────────────────────────────────────
+router.post("/product/:productId", customerAuthMiddleware, addReview);
 
 // ── Admin routes ──────────────────────────────────────────────
 router.get("/", authMiddleware, authorizationMiddleware(["admin"]), getAllReviews);

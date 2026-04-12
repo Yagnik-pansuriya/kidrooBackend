@@ -10,6 +10,8 @@ import userRoutes from "./userRoutes";
 import newsletterRoutes from "./newsletterRoutes";
 import reviewRoutes from "./reviewRoutes";
 import bannerRoutes from "./bannerRoutes";
+import customerAuthRoutes from "./customerAuthRoutes";
+import customerRoutes from "./customerRoutes";
 
 const router = Router();
 
@@ -24,5 +26,7 @@ router.use("/users", userRoutes);
 router.use("/newsletter", newsletterRoutes);
 router.use("/reviews", reviewRoutes);
 router.use("/banners", bannerRoutes);
+router.use("/customer/auth", customerAuthRoutes);
+router.use("/customer", customerRoutes);
 
 export default router;
