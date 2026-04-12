@@ -8,6 +8,7 @@ import {
   toggleReviewApproval,
 } from "../controller/reviewController";
 import { authMiddleware, authorizationMiddleware } from "../middlewares/authMiddleware";
+import { customerAuthMiddleware } from "../middlewares/customerAuthMiddleware";
 
 const router = Router();
 
@@ -87,7 +88,8 @@ router.get("/product/:productId/stats", getProductStats);
  *       201:
  *         description: Review successfully added
  */
-router.post("/product/:productId", addReview);
+// Customer-only: must be authenticated to add a review
+router.post("/product/:productId", customerAuthMiddleware, addReview);
 
 // ── Admin routes ──────────────────────────────────────────────
 

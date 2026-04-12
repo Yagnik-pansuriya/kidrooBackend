@@ -45,7 +45,7 @@ app.use(
 
 // CORS: Restrict origins to trusted domains only
 const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",")
+  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
   : [
       "http://localhost:3000",
       "http://localhost:5000",
@@ -53,6 +53,8 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
       "http://127.0.0.1:5173",
       "http://127.0.0.1:3000",
       "http://127.0.0.1:5000",
+      "https://kidroo.vercel.app",
+      "https://kidrootoys.vercel.app",
     ];
 
 app.use(
@@ -75,7 +77,14 @@ app.use(
       }
     },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "X-Customer-Token",
+      "Accept",
+    ],
+    exposedHeaders: ["X-Customer-Token"],
     credentials: true,
     maxAge: 86400, // 24 hours
   }),

@@ -112,6 +112,7 @@ export const createProduct = asyncHandler(
       tags,
       isActive,
       hasVariants,
+      youtubeUrl,
     } = req.body;
 
     // Parse JSON fields if they are strings (from form-data)
@@ -197,6 +198,7 @@ export const createProduct = asyncHandler(
       tags,
       isActive: isActive === "true" || isActive === true,
       hasVariants: finalHasVariants,
+      youtubeUrl: youtubeUrl || '',
     } as any);
 
     // ── Auto-create a default variant ──────────────────────────────
@@ -211,6 +213,7 @@ export const createProduct = asyncHandler(
       images: imageUrls,
       status: "active",
       isDefault: true,
+      youtubeUrl: youtubeUrl || '',
     });
 
     await CacheService.delPattern("products:page:*");
@@ -253,6 +256,7 @@ export const updateProduct = asyncHandler(
       tags,
       isActive,
       hasVariants,
+      youtubeUrl,
     } = req.body;
 
     // Parse JSON fields
@@ -303,6 +307,7 @@ export const updateProduct = asyncHandler(
       category,
       ageRange,
       tags,
+      youtubeUrl,
     };
 
     if (featured !== undefined) updateData.featured = featured === "true" || featured === true;
@@ -355,5 +360,31 @@ export const deleteProduct = asyncHandler(
     await CacheService.del(`product:${id}`);
 
     return sendSuccessResponse(res, 200, "Product deleted successfully", null);
+  },
+);
+
+/**
+ * Reorder products (bulk position update)
+ * PUT /api/products/reorder
+ */
+export const reorderProducts = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { items } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new AppError("Items array is required", 400);
+    }
+
+    const bulkOps = items.map((item: any) => ({
+      updateOne: {
+        filter: { _id: item.id },
+        update: { $set: { position: item.position } },
+      },
+    }));
+
+    await Product.bulkWrite(bulkOps);
+    await CacheService.delPattern("products:*");
+
+    return sendSuccessResponse(res, 200, "Products reordered successfully", null);
   },
 );

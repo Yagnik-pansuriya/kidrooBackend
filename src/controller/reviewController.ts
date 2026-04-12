@@ -15,8 +15,9 @@ export const getProductStats = asyncHandler(async (req: Request, res: Response) 
   return sendSuccessResponse(res, 200, "Stats fetched", stats);
 });
 
-// POST /api/reviews/product/:productId (public)
+// POST /api/reviews/product/:productId (customer-only)
 export const addReview = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = (req as any).customerId;
   const { name, rating, title, comment } = req.body;
   const review = await reviewService.addReview({
     product: req.params.productId as string,
@@ -24,6 +25,7 @@ export const addReview = asyncHandler(async (req: Request, res: Response) => {
     rating: Number(rating),
     title,
     comment,
+    user: customerId || null,
   });
   return sendSuccessResponse(res, 201, "Review added", review);
 });
