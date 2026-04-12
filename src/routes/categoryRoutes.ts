@@ -5,6 +5,7 @@ import {
   deleteCategory,
   getAllCategories,
   getCategoryById,
+  reorderCategories,
 } from "../controller/categoryController";
 import { upload } from "../middlewares/upload.middleware";
 import { authMiddleware, authorizationMiddleware } from "../middlewares/authMiddleware";
@@ -25,6 +26,14 @@ const router = Router();
  *         description: Successfully retrieved categories
  */
 router.get("/", getAllCategories);
+
+// PUT /api/categories/reorder — must be BEFORE /:id
+router.put(
+  "/reorder",
+  authMiddleware,
+  authorizationMiddleware(["admin"]),
+  reorderCategories
+);
 
 /**
  * @swagger

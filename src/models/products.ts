@@ -23,6 +23,7 @@ export interface IProduct {
   tags: string[];
   isActive: boolean;
   hasVariants?: boolean;
+  position?: number;
   variants?: mongoose.Schema.Types.ObjectId[]; // Add this line
 }
 
@@ -124,6 +125,10 @@ const productSchema = new mongoose.Schema<IProduct>(
         ref: "ProductVariant",
       },
     ],
+    position: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true },
 );

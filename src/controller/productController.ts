@@ -357,3 +357,29 @@ export const deleteProduct = asyncHandler(
     return sendSuccessResponse(res, 200, "Product deleted successfully", null);
   },
 );
+
+/**
+ * Reorder products (bulk position update)
+ * PUT /api/products/reorder
+ */
+export const reorderProducts = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { items } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new AppError("Items array is required", 400);
+    }
+
+    const bulkOps = items.map((item: any) => ({
+      updateOne: {
+        filter: { _id: item.id },
+        update: { $set: { position: item.position } },
+      },
+    }));
+
+    await Product.bulkWrite(bulkOps);
+    await CacheService.delPattern("products:page:*");
+
+    return sendSuccessResponse(res, 200, "Products reordered successfully", null);
+  },
+);
