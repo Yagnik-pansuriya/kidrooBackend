@@ -112,6 +112,7 @@ export const createProduct = asyncHandler(
       tags,
       isActive,
       hasVariants,
+      youtubeUrl,
     } = req.body;
 
     // Parse JSON fields if they are strings (from form-data)
@@ -190,6 +191,7 @@ export const createProduct = asyncHandler(
       tags,
       isActive: isActive === "true" || isActive === true,
       hasVariants: true,
+      youtubeUrl: youtubeUrl || '',
     } as any);
 
     // ── Auto-create a default variant ──────────────────────────────
@@ -204,6 +206,7 @@ export const createProduct = asyncHandler(
       images: imageUrls,
       status: "active",
       isDefault: true,
+      youtubeUrl: youtubeUrl || '',
     });
 
     await CacheService.delPattern("products:*");
@@ -246,6 +249,7 @@ export const updateProduct = asyncHandler(
       tags,
       isActive,
       hasVariants,
+      youtubeUrl,
     } = req.body;
 
     // Parse JSON fields
@@ -304,6 +308,7 @@ export const updateProduct = asyncHandler(
       tags,
       isActive,
       hasVariants,
+      youtubeUrl,
     };
 
     if (imageUrls.length > 0) {

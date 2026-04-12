@@ -21,6 +21,7 @@ export const createProductSchema = z.object({
     newArrival: z.preprocess(booleanPreprocess, z.boolean().optional()),
     bestSeller: z.preprocess(booleanPreprocess, z.boolean().optional()),
     isActive: z.preprocess(booleanPreprocess, z.boolean().optional()),
+    youtubeUrl: z.string().optional(),
     ageRange: z.any().optional(),
     tags: z.any().optional(),
   }),

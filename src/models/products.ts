@@ -22,6 +22,7 @@ export interface IProduct {
   };
   tags: string[];
   isActive: boolean;
+  youtubeUrl?: string;
   hasVariants?: boolean;
   variants?: mongoose.Schema.Types.ObjectId[]; // Add this line
 }
@@ -105,6 +106,10 @@ const productSchema = new mongoose.Schema<IProduct>(
     isActive: {
       type: Boolean,
       required: true,
+    },
+    youtubeUrl: {
+      type: String,
+      default: '',
     },
     hasVariants: {
       type: Boolean,
