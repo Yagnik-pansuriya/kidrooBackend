@@ -285,3 +285,24 @@ export const deleteCategory = asyncHandler(
     return sendSuccessResponse(res, 200, "Category deleted successfully", null);
   }
 );
+
+/**
+ * Reorder categories (bulk position update)
+ * PUT /api/categories/reorder
+ */
+export const reorderCategories = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { items } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new AppError("Items array is required", 400);
+    }
+
+    const categories = await categoryService.reorderCategories(items);
+
+    // clear cache
+    await CacheService.del("categories");
+
+    return sendSuccessResponse(res, 200, "Categories reordered successfully", categories);
+  }
+);

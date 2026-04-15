@@ -28,6 +28,8 @@ export interface IProductVariant extends Document {
 
   isDefault: boolean;
 
+  youtubeUrl?: string;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -107,6 +109,11 @@ const productVariantSchema = new Schema<IProductVariant>(
     isDefault: {
       type: Boolean,
       default: false,
+    },
+
+    youtubeUrl: {
+      type: String,
+      default: '',
     },
   },
   { timestamps: true },

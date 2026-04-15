@@ -53,6 +53,7 @@ export const createVariant = asyncHandler(
       weight,
       status,
       isDefault,
+      youtubeUrl,
     } = req.body;
 
     // FormData sends objects as JSON strings — parse them back safely
@@ -116,6 +117,7 @@ export const createVariant = asyncHandler(
       images: imageUrls,
       status: safeStatus,
       isDefault: isDefault === "true" || isDefault === true,
+      youtubeUrl: youtubeUrl || '',
     });
 
     await CacheService.delPattern("products:*");

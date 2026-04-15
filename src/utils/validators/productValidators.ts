@@ -20,8 +20,9 @@ export const createProductSchema = z.object({
     newArrival: z.preprocess(booleanPreprocess, z.boolean().optional()),
     bestSeller: z.preprocess(booleanPreprocess, z.boolean().optional()),
     isActive: z.preprocess(booleanPreprocess, z.boolean().optional()),
-    ageRange: z.union([z.string(), z.object({ from: z.number().optional(), to: z.number().optional() })]).optional(),
-    tags: z.union([z.string(), z.array(z.string())]).optional(),
+    youtubeUrl: z.string().optional(),
+    ageRange: z.any().optional(),
+    tags: z.any().optional(),
   }),
 });
 

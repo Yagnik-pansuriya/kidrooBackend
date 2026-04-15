@@ -6,6 +6,7 @@ interface ICategory extends mongoose.Document {
   icon?: string;
   image?: string;
   count?: number;
+  position?: number;
 }
 
 const categorySchema = new mongoose.Schema<ICategory>({
@@ -31,7 +32,11 @@ const categorySchema = new mongoose.Schema<ICategory>({
   count: {
     type: Number,
     default: 0,
-  }
+  },
+  position: {
+    type: Number,
+    default: 0,
+  },
 
 })
 

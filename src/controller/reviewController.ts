@@ -19,6 +19,7 @@ export const getProductStats = asyncHandler(async (req: Request, res: Response) 
 
 // POST /api/reviews/product/:productId (public — rate limited + validated by route)
 export const addReview = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = (req as any).customerId;
   const { name, rating, title, comment } = req.body;
   const userId = (req as any).userId; // May be undefined for anonymous reviews
 

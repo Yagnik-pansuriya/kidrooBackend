@@ -7,6 +7,7 @@ import {
   getAllProducts,
   getProductById,
   getProductFilters,
+  reorderProducts,
 } from "../controller/productController";
 import {
   createVariant,
@@ -102,6 +103,14 @@ router.get("/filters", getProductFilters);
  *         description: Successfully retrieved list of products
  */
 router.get("/", getAllProducts);
+
+// PUT /api/products/reorder — must be BEFORE /:id
+router.put(
+  "/reorder",
+  authMiddleware,
+  authorizationMiddleware(["admin"]),
+  reorderProducts
+);
 
 /**
  * @swagger
