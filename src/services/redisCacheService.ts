@@ -47,4 +47,20 @@ export class CacheService {
   static async deleteRefreshToken(userId: string): Promise<void> {
     await redis.del(`rt:${userId}`);
   }
+
+  // ── Customer refresh token store ──────────────────────────────────────────
+  // Separate namespace `crt:` to avoid collision with admin tokens.
+  // Key: crt:{customerId}, Value: raw refresh token string, TTL: 30 days.
+
+  static async setCustomerRefreshToken(customerId: string, token: string): Promise<void> {
+    await redis.set(`crt:${customerId}`, token, "EX", 30 * 24 * 60 * 60);
+  }
+
+  static async getCustomerRefreshToken(customerId: string): Promise<string | null> {
+    return await redis.get(`crt:${customerId}`);
+  }
+
+  static async deleteCustomerRefreshToken(customerId: string): Promise<void> {
+    await redis.del(`crt:${customerId}`);
+  }
 }

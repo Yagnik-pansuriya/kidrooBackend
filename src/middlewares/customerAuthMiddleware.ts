@@ -3,23 +3,26 @@ import { verifyToken } from "../utils/jwt";
 import AppError from "../utils/appError";
 
 /**
- * Middleware to authenticate customer (user-side) requests.
- * Checks for JWT token in cookies or Authorization header.
- * Sets req.customerId and req.customer on success.
+ * Authenticate customer requests.
+ * - Reads token from customerAccessToken cookie → X-Customer-Token header → Authorization header
+ * - Asserts token type = "access" (prevents refresh tokens from being used as access tokens)
+ * - Asserts role = "customer" (prevents admin tokens from accessing customer routes)
  */
 export const customerAuthMiddleware = (
   req: Request,
   res: Response,
   next: NextFunction
-) => {
+): void => {
   try {
-    // Check cookie first, then X-Customer-Token header, then Authorization header
-    let token = req.cookies?.customerAccessToken;
+    let token = req.cookies?.customerAccessToken as string | undefined;
 
     if (!token) {
-      // Check custom customer header (sent when both admin and customer tokens exist)
       const customerHeader = req.headers["x-customer-token"];
-      if (customerHeader && typeof customerHeader === "string" && customerHeader.startsWith("Bearer ")) {
+      if (
+        customerHeader &&
+        typeof customerHeader === "string" &&
+        customerHeader.startsWith("Bearer ")
+      ) {
         token = customerHeader.substring(7);
       }
     }
@@ -35,11 +38,12 @@ export const customerAuthMiddleware = (
       throw new AppError("Please login to continue", 401);
     }
 
-    const decoded = verifyToken(token);
+    // Type assertion: only accept access tokens, never refresh tokens
+    const decoded = verifyToken(token, "access");
 
-    // Verify this is a customer token (not admin)
+    // Role guard: reject admin tokens used on customer routes
     if (decoded.role !== "customer") {
-      throw new AppError("Invalid token type", 401);
+      throw new AppError("Access denied: invalid token role", 401);
     }
 
     (req as any).customerId = decoded.id;
@@ -57,20 +61,23 @@ export const customerAuthMiddleware = (
 
 /**
  * Optional customer auth — does NOT throw if no token present.
- * If token exists, sets req.customerId. If not, continues anyway.
- * Useful for routes that work for both guests and logged-in users.
+ * Useful for routes accessible by both guests and logged-in customers.
  */
 export const optionalCustomerAuth = (
   req: Request,
   res: Response,
   next: NextFunction
-) => {
+): void => {
   try {
-    let token = req.cookies?.customerAccessToken;
+    let token = req.cookies?.customerAccessToken as string | undefined;
 
     if (!token) {
       const customerHeader = req.headers["x-customer-token"];
-      if (customerHeader && typeof customerHeader === "string" && customerHeader.startsWith("Bearer ")) {
+      if (
+        customerHeader &&
+        typeof customerHeader === "string" &&
+        customerHeader.startsWith("Bearer ")
+      ) {
         token = customerHeader.substring(7);
       }
     }
@@ -83,7 +90,7 @@ export const optionalCustomerAuth = (
     }
 
     if (token) {
-      const decoded = verifyToken(token);
+      const decoded = verifyToken(token, "access");
       if (decoded.role === "customer") {
         (req as any).customerId = decoded.id;
         (req as any).customer = decoded;

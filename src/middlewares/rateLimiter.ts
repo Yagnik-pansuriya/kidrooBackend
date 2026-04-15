@@ -21,3 +21,12 @@ export const authLimiter = rateLimit({
   legacyHeaders: false,
   message: "Too many login attempts, please try again later.",
 });
+
+/** Stricter limiter for OTP send/resend to prevent Twilio SMS billing abuse. */
+export const otpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isServerless ? 10 : isProduction ? 3 : 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: "Too many OTP requests. Please wait before requesting another.",
+});
