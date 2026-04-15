@@ -2,11 +2,11 @@ import { Request, Response, NextFunction } from "express";
 import { verifyToken } from "../utils/jwt";
 import AppError from "../utils/appError";
 
-export const authMiddleware = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+/**
+ * authMiddleware — verifies the access token from cookie or Authorization header.
+ * CRIT-2 fix: explicitly asserts token type is "access". Refresh tokens are rejected.
+ */
+export const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
   try {
     let token = req.cookies?.accessToken;
 
@@ -21,7 +21,8 @@ export const authMiddleware = (
       throw new AppError("No token provided. Please log in.", 401);
     }
 
-    const decoded = verifyToken(token);
+    // Assert token type is "access". Refresh tokens are rejected here.
+    const decoded = verifyToken(token, "access");
 
     (req as any).userId = decoded.id;
     (req as any).user = decoded;
@@ -42,10 +43,7 @@ export const authorizationMiddleware = (allowedRoles: string[]) => {
       const userRole = (req as any).user?.role;
 
       if (!userRole || !allowedRoles.includes(userRole)) {
-        throw new AppError(
-          "You do not have permission to access this resource",
-          403,
-        );
+        throw new AppError("You do not have permission to access this resource", 403);
       }
 
       next();

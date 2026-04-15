@@ -17,8 +17,22 @@ class NewsletterService {
     return await Newsletter.create({ email: email.toLowerCase().trim() });
   }
 
-  async getAll() {
-    return await Newsletter.find().sort({ subscribedAt: -1 }).lean();
+  /**
+   * MED-5: Paginated subscriber list — prevents OOM on large datasets.
+   */
+  async getAll(page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+    const [subscribers, total] = await Promise.all([
+      Newsletter.find().sort({ subscribedAt: -1 }).skip(skip).limit(limit).lean(),
+      Newsletter.countDocuments(),
+    ]);
+    return {
+      subscribers,
+      total,
+      page,
+      limit,
+      pages: Math.ceil(total / limit),
+    };
   }
 
   async getStats() {

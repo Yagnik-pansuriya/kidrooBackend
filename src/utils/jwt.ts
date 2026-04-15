@@ -1,100 +1,93 @@
-import jwt, { SignOptions, VerifyOptions } from "jsonwebtoken";
+import jwt, { VerifyOptions } from "jsonwebtoken";
 import AppError from "./appError";
 
-interface JWTPayload {
+export interface JWTPayload {
   id: string;
   email: string;
   role?: string;
+  /**
+   * "access" tokens are short-lived (15m) for API requests.
+   * "refresh" tokens are long-lived (7d) for token renewal only.
+   * NEVER accept a refresh token in authMiddleware.
+   * NEVER accept an access token in refreshAccessToken.
+   */
+  type: "access" | "refresh";
 }
 
 /**
- * Generate JWT token
- * @param payload - Token payload
- * @param expiresIn - Token expiration time (default from env)
- * @returns JWT token string
+ * Internal token generator — use generateAccessToken / generateRefreshToken instead.
  */
-export const generateToken = (
-  payload: JWTPayload,
-  expiresIn?: string,
-): string => {
+const generateToken = (payload: JWTPayload, expiresIn: string): string => {
   const secret = process.env.JWT_SECRET;
 
-  if (!secret) {
-    throw new AppError("JWT_SECRET not configured", 500);
-  }
-
-  if (!payload.id) {
-    throw new AppError("User ID is required for token generation", 400);
-  }
+  if (!secret) throw new AppError("JWT_SECRET not configured", 500);
+  if (!payload.id) throw new AppError("User ID is required for token generation", 400);
 
   try {
-    const options: any = {
-      expiresIn: expiresIn || process.env.JWT_EXPIRE || "7d",
-      algorithm: "HS256",
-    };
-
-    const token = jwt.sign(payload, secret, options);
-    return token;
+    return jwt.sign(payload, secret, { expiresIn, algorithm: "HS256" } as any);
   } catch (error: any) {
     throw new AppError(`Error generating token: ${error.message}`, 500);
   }
 };
 
 /**
- * Verify JWT token
- * @param token - JWT token to verify
- * @returns Decoded token payload
+ * Generate a short-lived access token (15 minutes).
  */
-export const verifyToken = (token: string): JWTPayload => {
-  const secret = process.env.JWT_SECRET;
+export const generateAccessToken = (payload: Omit<JWTPayload, "type">): string =>
+  generateToken({ ...payload, type: "access" }, "15m");
 
-  if (!secret) {
-    throw new AppError("JWT_SECRET not configured", 500);
-  }
+/**
+ * Generate a long-lived refresh token (7 days).
+ */
+export const generateRefreshToken = (payload: Omit<JWTPayload, "type">): string =>
+  generateToken({ ...payload, type: "refresh" }, "7d");
+
+/**
+ * Generate both access and refresh tokens.
+ */
+export const generateTokenPair = (payload: Omit<JWTPayload, "type">) => {
+  const accessToken = generateAccessToken(payload);
+  const refreshToken = generateRefreshToken(payload);
+  return { accessToken, refreshToken };
+};
+
+/**
+ * Verify JWT token and optionally assert the expected type.
+ * Throws 401 AppError on any failure.
+ */
+export const verifyToken = (token: string, expectedType?: "access" | "refresh"): JWTPayload => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new AppError("JWT_SECRET not configured", 500);
 
   try {
-    const options: VerifyOptions = {
-      algorithms: ["HS256"],
-    };
-
+    const options: VerifyOptions = { algorithms: ["HS256"] };
     const decoded = jwt.verify(token, secret, options) as JWTPayload;
+
+    // Enforce type separation: reject tokens used for the wrong purpose.
+    // Backward-compatible: tokens without a type field are treated as access tokens.
+    if (expectedType && decoded.type && decoded.type !== expectedType) {
+      throw new AppError(
+        `Invalid token type. Expected "${expectedType}", got "${decoded.type}".`,
+        401,
+      );
+    }
+
     return decoded;
   } catch (error: any) {
-    if (error.name === "TokenExpiredError") {
-      throw new AppError("Token has expired", 401);
-    }
-    if (error.name === "JsonWebTokenError") {
-      throw new AppError("Invalid token", 401);
-    }
+    if (error instanceof AppError) throw error;
+    if (error.name === "TokenExpiredError") throw new AppError("Token has expired", 401);
+    if (error.name === "JsonWebTokenError") throw new AppError("Invalid token", 401);
     throw new AppError(`Error verifying token: ${error.message}`, 401);
   }
 };
 
 /**
- * Decode JWT token without verification
- * @param token - JWT token to decode
- * @returns Decoded token payload
+ * Decode JWT token without verification (use for logging only — never trust decoded data).
  */
 export const decodeToken = (token: string): JWTPayload | null => {
   try {
-    const decoded = jwt.decode(token) as JWTPayload | null;
-    return decoded;
-  } catch (error: any) {
+    return jwt.decode(token) as JWTPayload | null;
+  } catch {
     return null;
   }
-};
-
-/**
- * Generate both access and refresh tokens
- * @param payload - Token payload
- * @returns Object with access and refresh tokens
- */
-export const generateTokenPair = (payload: JWTPayload) => {
-  const accessToken = generateToken(payload, "15m");
-  const refreshToken = generateToken(payload, "7d");
-
-  return {
-    accessToken,
-    refreshToken,
-  };
 };

@@ -18,7 +18,8 @@ class BannerService {
   }
 
   async updateBanner(id: string, data: any) {
-    return Banner.findByIdAndUpdate(id, data, { new: true });
+    // HIGH-6: runValidators ensures Mongoose schema validators run on update
+    return Banner.findByIdAndUpdate(id, data, { new: true, runValidators: true });
   }
 
   async deleteBanner(id: string) {

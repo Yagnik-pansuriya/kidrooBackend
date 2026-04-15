@@ -8,6 +8,9 @@ import {
   toggleReviewApproval,
 } from "../controller/reviewController";
 import { authMiddleware, authorizationMiddleware } from "../middlewares/authMiddleware";
+import { validateRequest } from "../middlewares/validateRequest";
+import { limiter } from "../middlewares/rateLimiter";
+import { addReviewSchema } from "../utils/validators/reviewValidators";
 import { customerAuthMiddleware } from "../middlewares/customerAuthMiddleware";
 
 const router = Router();
@@ -87,9 +90,11 @@ router.get("/product/:productId/stats", getProductStats);
  *     responses:
  *       201:
  *         description: Review successfully added
+ *       429:
+ *         description: Too many requests. Please try again later.
  */
-// Customer-only: must be authenticated to add a review
-router.post("/product/:productId", customerAuthMiddleware, addReview);
+// HIGH-3: rate limited; HIGH-8: validated with Zod schema
+router.post("/product/:productId", limiter, validateRequest(addReviewSchema), addReview);
 
 // ── Admin routes ──────────────────────────────────────────────
 
@@ -99,9 +104,20 @@ router.post("/product/:productId", customerAuthMiddleware, addReview);
  *   get:
  *     summary: Get all reviews (Admin only)
  *     tags: [Reviews]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
  *     responses:
  *       200:
- *         description: Successfully retrieved all reviews
+ *         description: Successfully retrieved all reviews (paginated)
  */
 router.get("/", authMiddleware, authorizationMiddleware(["admin"]), getAllReviews);
 

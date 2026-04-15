@@ -1,6 +1,7 @@
 import Review from "../models/review";
 import Product from "../models/products";
 import AppError from "../utils/appError";
+import mongoose from "mongoose";
 
 class ReviewService {
   // Get all reviews for a product (approved only for public)
@@ -13,7 +14,7 @@ class ReviewService {
   // Get review stats for a product
   async getProductStats(productId: string) {
     const stats = await Review.aggregate([
-      { $match: { product: require("mongoose").Types.ObjectId.createFromHexString(productId), isApproved: true } },
+      { $match: { product: mongoose.Types.ObjectId.createFromHexString(productId), isApproved: true } },
       {
         $group: {
           _id: null,
@@ -64,13 +65,21 @@ class ReviewService {
     return review;
   }
 
-  // Get all reviews (admin — across all products)
-  async getAllReviews() {
-    return await Review.find()
-      .populate("user", "name email")
-      .populate("product", "productName slug")
-      .sort({ createdAt: -1 })
-      .lean();
+  // Get all reviews (admin — across all products, paginated)
+  // MED-5: Pagination prevents OOM on large review datasets
+  async getAllReviews(page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+    const [reviews, total] = await Promise.all([
+      Review.find()
+        .populate("user", "name email")
+        .populate("product", "productName slug")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Review.countDocuments(),
+    ]);
+    return { reviews, total, page, limit, pages: Math.ceil(total / limit) };
   }
 
   // Recalculate product rating

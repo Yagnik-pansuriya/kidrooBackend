@@ -52,7 +52,7 @@ export const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit
+    fileSize: 5 * 1024 * 1024, // 5MB limit — matches documented API constraint
   },
 });
 
@@ -64,7 +64,7 @@ export const uploadSingle = (fieldName: string) => {
     singleUpload(req as any, res as any, (err: any) => {
       if (err instanceof multer.MulterError) {
         if (err.code === "LIMIT_FILE_SIZE") {
-          return next(new AppError("File size too large. Max 50MB", 400));
+          return next(new AppError("File size too large. Max 5MB", 400));
         }
         return next(new AppError(err.message, 400));
       } else if (err) {
@@ -83,7 +83,7 @@ export const uploadMultiple = (fieldName: string, maxCount: number = 5) => {
     multipleUpload(req as any, res as any, (err: any) => {
       if (err instanceof multer.MulterError) {
         if (err.code === "LIMIT_FILE_SIZE") {
-          return next(new AppError("File size too large. Max 50MB", 400));
+          return next(new AppError("File size too large. Max 5MB", 400));
         }
         if (err.code === "LIMIT_FILE_COUNT") {
           return next(new AppError(`Max ${maxCount} files allowed`, 400));

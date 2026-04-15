@@ -306,7 +306,7 @@ router.post(
  *                         - not_found
  *                       example: "ok"
  *       400:
- *         description: Public ID is required
+ *         description: Public ID is required or invalid format
  *       404:
  *         description: File not found in Cloudinary
  */
@@ -315,17 +315,26 @@ router.delete(
   authMiddleware,
   checkPermission("/upload"),
   asyncHandler(async (req: Request, res: Response) => {
-    const publicId = req.params.publicId as string;
+    const rawPublicId = req.params.publicId as string;
     const resourceType = req.query.resourceType as string | undefined;
 
-    if (!publicId) {
+    // MED-6: Sanitize publicId to prevent path traversal attacks
+    if (!rawPublicId) {
       throw new AppError("Public ID is required", 400);
     }
 
-    const result = await deleteFromCloudinary(
-      publicId,
-      resourceType || "image",
-    );
+    const SAFE_PUBLIC_ID = /^[a-zA-Z0-9/_\-]+$/;
+    if (!SAFE_PUBLIC_ID.test(rawPublicId)) {
+      throw new AppError("Invalid public ID format", 400);
+    }
+
+    // Restrict resourceType to known Cloudinary resource types
+    const ALLOWED_RESOURCE_TYPES = ["image", "video", "raw"];
+    const safeResourceType = resourceType && ALLOWED_RESOURCE_TYPES.includes(resourceType)
+      ? resourceType
+      : "image";
+
+    const result = await deleteFromCloudinary(rawPublicId, safeResourceType);
 
     res.status(200).json({
       success: true,

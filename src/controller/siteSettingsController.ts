@@ -5,27 +5,9 @@ import { sendSuccessResponse, sendErrorResponse } from "../utils/apiResponse";
 import {
   uploadToCloudinary,
   deleteFromCloudinary,
+  extractPublicId, // MED-2: centralized helper, removed local duplicate
 } from "../utils/uploadToCloudinary";
 import fs from "fs";
-
-/**
- * Extract public ID from Cloudinary URL
- */
-const extractPublicId = (url: string) => {
-  try {
-    const uploadIndex = url.indexOf("/upload/");
-    if (uploadIndex === -1) return null;
-    const afterUpload = url.substring(uploadIndex + 8);
-    const withoutVersion = afterUpload.replace(/^v\d+\//, "");
-    const withoutExtension = withoutVersion.substring(
-      0,
-      withoutVersion.lastIndexOf("."),
-    );
-    return withoutExtension || withoutVersion;
-  } catch (e) {
-    return null;
-  }
-};
 
 /**
  * Get Site Settings

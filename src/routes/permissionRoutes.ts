@@ -122,6 +122,7 @@ router.put(
 router.post(
   "/check",
   authMiddleware,
+  authorizationMiddleware(["admin"]), // MED-7: admin-only
   checkPermission("/permissions"),
   validateRequest(checkAccessSchema),
   PermissionController.checkAccess

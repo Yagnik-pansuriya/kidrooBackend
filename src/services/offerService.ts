@@ -28,7 +28,8 @@ class OfferService {
   }
 
   async updateOffer(id: string, offerData: any) {
-    const offer = await Offer.findByIdAndUpdate(id, offerData, { new: true });
+    // HIGH-6: runValidators ensures Mongoose schema validators run on update
+    const offer = await Offer.findByIdAndUpdate(id, offerData, { new: true, runValidators: true });
     return offer;
   }
 

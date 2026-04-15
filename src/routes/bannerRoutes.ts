@@ -12,6 +12,8 @@ import {
   authorizationMiddleware,
 } from "../middlewares/authMiddleware";
 import { checkPermission } from "../middlewares/permissionMiddleware";
+import { validateRequest } from "../middlewares/validateRequest";
+import { createBannerSchema, updateBannerSchema } from "../utils/validators/bannerValidators";
 
 const router = Router();
 
@@ -100,6 +102,7 @@ router.post(
   authMiddleware,
   authorizationMiddleware(["admin"]),
   checkPermission("/banners"),
+  validateRequest(createBannerSchema), // HIGH-7: validated before upload to avoid wasted I/O
   uploadSingle("image"),
   createBanner,
 );
@@ -144,6 +147,7 @@ router.put(
   authMiddleware,
   authorizationMiddleware(["admin"]),
   checkPermission("/banners"),
+  validateRequest(updateBannerSchema), // HIGH-7: validated before upload
   uploadSingle("image"),
   updateBanner,
 );
