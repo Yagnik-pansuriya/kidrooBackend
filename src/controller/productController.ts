@@ -337,14 +337,18 @@ export const updateProduct = asyncHandler(
 
     const product = await productService.updateProduct(id, updateData);
 
-    // Sync with default variant if price, originalPrice, stock, or images changed
-    // We use the original passed-in stock value for the variant sync
+    // Sync default variant with parent product data
+    // Default variants are fully dependent on the product — they cannot be edited independently
     if (finalHasVariants) {
       const variantSyncData: any = {};
       if (price !== undefined) variantSyncData.price = Number(price);
       if (originalPrice !== undefined) variantSyncData.originalPrice = Number(originalPrice);
       if (stock !== undefined) variantSyncData.stock = Number(stock);
       if (imageUrls.length > 0) variantSyncData.images = imageUrls;
+      if (youtubeUrl !== undefined) variantSyncData.youtubeUrl = youtubeUrl;
+      if (isActive !== undefined) {
+        variantSyncData.status = (isActive === "true" || isActive === true) ? "active" : "inactive";
+      }
 
       if (Object.keys(variantSyncData).length > 0) {
         await variantService.syncDefaultVariant(id, variantSyncData);

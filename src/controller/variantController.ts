@@ -135,6 +135,19 @@ export const updateVariant = asyncHandler(
       throw new AppError("Invalid variant ID", 400);
     }
 
+    const existingVariant = await variantService.getVariantById(variantId);
+    if (!existingVariant) {
+      throw new AppError("Variant not found", 404);
+    }
+
+    // Default variants are managed by the parent product — cannot be edited directly
+    if (existingVariant.isDefault) {
+      throw new AppError(
+        "Default variant cannot be edited directly. Update the parent product instead.",
+        403
+      );
+    }
+
     let { stock, attributes, dimensions, ...updateData } = req.body;
 
     const parseField = (field: any) => {
@@ -146,11 +159,6 @@ export const updateVariant = asyncHandler(
 
     attributes = parseField(attributes);
     dimensions = parseField(dimensions);
-
-    const existingVariant = await variantService.getVariantById(variantId);
-    if (!existingVariant) {
-      throw new AppError("Variant not found", 404);
-    }
 
     // Upload all new images to Cloudinary in PARALLEL
     const files = req.files as Express.Multer.File[] | undefined;
@@ -258,6 +266,15 @@ export const deleteVariant = asyncHandler(
 
     if (!mongoose.isValidObjectId(variantId)) {
       throw new AppError("Invalid variant ID", 400);
+    }
+
+    // Default variants are managed by the parent product — cannot be deleted directly
+    const variant = await variantService.getVariantById(variantId);
+    if (variant?.isDefault) {
+      throw new AppError(
+        "Default variant cannot be deleted. It is managed by the parent product.",
+        403
+      );
     }
 
     await variantService.deleteVariantById(variantId);

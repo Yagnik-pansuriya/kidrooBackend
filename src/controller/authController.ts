@@ -54,7 +54,8 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 
   const permissions = await PermissionService.getPermissions(user._id.toString());
 
-  // CRIT-3 fix: tokens are NOT returned in the response body
+  // Return accessToken in response body so the frontend can store it
+  // for Bearer auth in subsequent requests (required by the SPA flow).
   return sendSuccessResponse(res, 200, "Login successful", {
     id: user._id,
     name: user.name,
@@ -62,6 +63,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     userName: user.userName,
     role: user.role,
     permissions,
+    accessToken,
   });
 });
 
@@ -126,12 +128,13 @@ export const refreshAccessToken = asyncHandler(async (req: Request, res: Respons
 
   const permissions = await PermissionService.getPermissions(user._id.toString());
 
-  // CRIT-3 fix: tokens NOT in response body
+  // Return new accessToken in response body for frontend Bearer auth
   return sendSuccessResponse(res, 200, "Token refreshed successfully", {
     id: user._id,
     email: user.email,
     role: user.role,
     permissions,
+    accessToken: newAccessToken,
   });
 });
 
