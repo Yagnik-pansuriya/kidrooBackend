@@ -123,11 +123,8 @@ router.get("/", getAllProducts);
  *               - description
  *               - price
  *               - originalPrice
- *               - discountPercentage
  *               - stock
  *               - category
- *               - ratings
- *               - numReviews
  *               - featured
  *               - newArrival
  *               - bestSeller
@@ -151,9 +148,6 @@ router.get("/", getAllProducts);
  *               originalPrice:
  *                 type: number
  *                 example: 39.99
- *               discountPercentage:
- *                 type: number
- *                 example: 25
  *               stock:
  *                 type: number
  *                 example: 100
@@ -248,16 +242,10 @@ router.post(
  *                 type: number
  *               originalPrice:
  *                 type: number
- *               discountPercentage:
- *                 type: number
  *               stock:
  *                 type: number
  *               category:
  *                 type: string
- *               ratings:
- *                 type: number
- *               numReviews:
- *                 type: number
  *               featured:
  *                 type: boolean
  *               newArrival:

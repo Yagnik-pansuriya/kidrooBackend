@@ -17,12 +17,7 @@ class VariantService {
       filter.status = { $ne: "inactive" };
     }
 
-    // .lean() returns plain JS objects — attributes (now Mixed type) comes back as-is
-    const variants = await ProductVariant.find(filter)
-      .sort({ isDefault: -1, createdAt: 1 })
-      .lean();
-
-    console.log(`Fetched ${variants.length} variants for product ${productId} (isAdmin: ${isAdmin})`);
+    const variants = await ProductVariant.find(filter).lean();
     return variants;
   }
 
@@ -72,6 +67,19 @@ class VariantService {
     if (!variant) {
       throw new AppError("Variant not found", 404);
     }
+    return variant;
+  }
+
+  /**
+   * Sync the default variant's details with the base product
+   */
+  async syncDefaultVariant(productId: string, data: Partial<IProductVariant>) {
+    // Find and update the default variant for this product
+    const variant = await ProductVariant.findOneAndUpdate(
+      { product: new mongoose.Types.ObjectId(productId), isDefault: true },
+      { $set: data },
+      { new: true, runValidators: true }
+    );
     return variant;
   }
 

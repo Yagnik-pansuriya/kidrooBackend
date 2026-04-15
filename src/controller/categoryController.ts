@@ -1,24 +1,12 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../utils/asyncHandler";
 import AppError from "../utils/appError";
-import { uploadToCloudinary, deleteFromCloudinary } from "../utils/uploadToCloudinary";
+import { uploadToCloudinary, deleteFromCloudinary, extractPublicId } from "../utils/uploadToCloudinary";
 import fs from "fs";
 import { CacheService } from "../services/redisCacheService";
 import { sendErrorResponse, sendSuccessResponse } from "../utils/apiResponse";
 import { categoryService } from "../services/categoryService";
 import mongoose from "mongoose";
-
-// Helper to extract Cloudinary public_id from secure URL
-const extractPublicId = (url: string) => {
-  try {
-    const uploadIndex = url.indexOf("/upload/");
-    if (uploadIndex === -1) return null;
-    const afterUpload = url.substring(uploadIndex + 8);
-    const withoutVersion = afterUpload.replace(/^v\d+\//, "");
-    const withoutExtension = withoutVersion.substring(0, withoutVersion.lastIndexOf("."));
-    return withoutExtension || withoutVersion;
-  } catch(e) { return null; }
-};
 
 /**
  * Get All Categories

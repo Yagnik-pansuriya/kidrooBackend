@@ -119,7 +119,8 @@ class ProductService {
   }
 
   async updateProduct(id: string, productData: Partial<IProduct>) {
-    const product = await Product.findByIdAndUpdate(id, productData, { new: true })
+    // HIGH-6: runValidators ensures Mongoose schema validators run on update
+    const product = await Product.findByIdAndUpdate(id, productData, { new: true, runValidators: true })
     return product
   }
 
@@ -130,12 +131,20 @@ class ProductService {
     // Delete all images from Cloudinary
     if (product.images && product.images.length > 0) {
       for (const imgUrl of product.images) {
-        const pId = extractPublicId(imgUrl);
-        if (pId) await deleteFromCloudinary(pId, "image");
+        try {
+          const pId = extractPublicId(imgUrl);
+          if (pId) await deleteFromCloudinary(pId, "image");
+        } catch (err) {
+          console.error(`Failed to delete Cloudinary image: ${imgUrl}`, err);
+        }
       }
     } else if (product.image) {
-      const pId = extractPublicId(product.image);
-      if (pId) await deleteFromCloudinary(pId, "image");
+      try {
+        const pId = extractPublicId(product.image);
+        if (pId) await deleteFromCloudinary(pId, "image");
+      } catch (err) {
+        console.error(`Failed to delete Cloudinary image: ${product.image}`, err);
+      }
     }
 
     // Delete all variants and their images

@@ -12,17 +12,16 @@ export const createProductSchema = z.object({
     description: z.string().optional(),
     price: z.coerce.number().min(0, "Price must be positive"),
     originalPrice: z.coerce.number().min(0).optional(),
-    discountPercentage: z.coerce.number().min(0).max(100).optional(),
+    // MED-11: discountPercentage is auto-calculated from price/originalPrice — not writable
+    // MED-10: ratings and numReviews are system-managed — not writable
     stock: z.coerce.number().min(0).optional(),
     category: z.string().optional(),
-    ratings: z.coerce.number().min(0).max(5).optional(),
-    numReviews: z.coerce.number().min(0).optional(),
     featured: z.preprocess(booleanPreprocess, z.boolean().optional()),
     newArrival: z.preprocess(booleanPreprocess, z.boolean().optional()),
     bestSeller: z.preprocess(booleanPreprocess, z.boolean().optional()),
     isActive: z.preprocess(booleanPreprocess, z.boolean().optional()),
-    ageRange: z.any().optional(),
-    tags: z.any().optional(),
+    ageRange: z.union([z.string(), z.object({ from: z.number().optional(), to: z.number().optional() })]).optional(),
+    tags: z.union([z.string(), z.array(z.string())]).optional(),
   }),
 });
 

@@ -8,8 +8,16 @@ import {
 } from "../controller/newsletterController";
 import { authMiddleware, authorizationMiddleware } from "../middlewares/authMiddleware";
 import { checkPermission } from "../middlewares/permissionMiddleware";
+import { limiter } from "../middlewares/rateLimiter";
+import { validateRequest } from "../middlewares/validateRequest";
+import { z } from "zod";
 
 const router = Router();
+
+// Inline schema for newsletter email validation (HIGH-4)
+const emailSchema = z.object({
+  body: z.object({ email: z.string().email("Invalid email format") }),
+});
 
 // ── Public routes ─────────────────────────────────────────────
 
@@ -38,8 +46,10 @@ const router = Router();
  *         description: Subscribed successfully
  *       400:
  *         description: Email already subscribed
+ *       429:
+ *         description: Too many requests. Please try again later.
  */
-router.post("/subscribe", subscribe);
+router.post("/subscribe", limiter, validateRequest(emailSchema), subscribe);
 
 /**
  * @swagger
@@ -66,8 +76,10 @@ router.post("/subscribe", subscribe);
  *         description: Unsubscribed successfully
  *       404:
  *         description: Email not found
+ *       429:
+ *         description: Too many requests. Please try again later.
  */
-router.post("/unsubscribe", unsubscribe);
+router.post("/unsubscribe", limiter, validateRequest(emailSchema), unsubscribe);
 
 // ── Admin routes ──────────────────────────────────────────────
 
@@ -79,9 +91,22 @@ router.post("/unsubscribe", unsubscribe);
  *     description: Retrieve all emails on the newsletter list. (Admin only)
  *     tags:
  *       - Newsletter
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Items per page
  *     responses:
  *       200:
- *         description: Subscriber list fetched successfully
+ *         description: Subscriber list fetched successfully (paginated)
  */
 router.get("/", authMiddleware, authorizationMiddleware(["admin"]), getAllSubscribers);
 

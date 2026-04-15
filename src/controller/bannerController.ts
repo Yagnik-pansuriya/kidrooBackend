@@ -1,53 +1,72 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../utils/asyncHandler";
 import AppError from "../utils/appError";
-import { uploadToCloudinary, deleteFromCloudinary } from "../utils/uploadToCloudinary";
+import {
+  uploadToCloudinary,
+  deleteFromCloudinary,
+  extractPublicId, // MED-2: use centralized helper, removed local duplicate
+} from "../utils/uploadToCloudinary";
 import fs from "fs";
 import { sendErrorResponse, sendSuccessResponse } from "../utils/apiResponse";
 import { bannerService } from "../services/bannerService";
+import { CacheService } from "../services/redisCacheService";
 import mongoose from "mongoose";
 
-// Helper to extract Cloudinary public_id from URL
-const extractPublicId = (url: string) => {
-  try {
-    const uploadIndex = url.indexOf("/upload/");
-    if (uploadIndex === -1) return null;
-    const afterUpload = url.substring(uploadIndex + 8);
-    const withoutVersion = afterUpload.replace(/^v\d+\//, "");
-    const withoutExtension = withoutVersion.substring(0, withoutVersion.lastIndexOf("."));
-    return withoutExtension || withoutVersion;
-  } catch(e) { return null; }
-};
+const CACHE_ALL = "banners:all";
+const CACHE_ACTIVE = "banners:active";
+const cacheKey = (id: string) => `banner:${id}`;
 
 /**
  * GET /api/banners
+ * CRIT-4: wrapped in asyncHandler. LOW-8: Redis caching added.
  */
-export const getAllBanners = async (req: Request, res: Response) => {
+export const getAllBanners = asyncHandler(async (req: Request, res: Response) => {
   const { activeOnly } = req.query;
-  const banners = activeOnly === "true"
-    ? await bannerService.getActiveBanners()
-    : await bannerService.getAllBanners();
+  const key = activeOnly === "true" ? CACHE_ACTIVE : CACHE_ALL;
+
+  const cached = await CacheService.get(key);
+  if (cached) {
+    return sendSuccessResponse(res, 200, "Banners fetched successfully", cached);
+  }
+
+  const banners =
+    activeOnly === "true" ? await bannerService.getActiveBanners() : await bannerService.getAllBanners();
+
+  await CacheService.set(key, banners, 300);
   return sendSuccessResponse(res, 200, "Banners fetched successfully", banners);
-};
+});
 
 /**
  * GET /api/banners/:id
+ * CRIT-4: wrapped in asyncHandler. LOW-8: Redis caching added.
  */
-export const getBannerById = async (req: Request, res: Response) => {
+export const getBannerById = asyncHandler(async (req: Request, res: Response) => {
   const id = req.params.id as string;
   if (!mongoose.isValidObjectId(id)) {
     return sendErrorResponse(res, 400, "Invalid banner ID");
   }
+
+  const cached = await CacheService.get(cacheKey(id));
+  if (cached) {
+    return sendSuccessResponse(res, 200, "Banner fetched successfully", cached);
+  }
+
   const banner = await bannerService.getBannerById(id);
   if (!banner) return sendErrorResponse(res, 404, "Banner not found");
+
+  await CacheService.set(cacheKey(id), banner, 300);
   return sendSuccessResponse(res, 200, "Banner fetched successfully", banner);
-};
+});
 
 /**
  * POST /api/banners
+ * HIGH-7: Now validated by Zod schema in route.
  */
 export const createBanner = asyncHandler(async (req: Request, res: Response) => {
-  const { tag, title, highlightText, italicText, afterText, description, buttonText, buttonUrl, isActive, order } = req.body;
+  const {
+    tag, title, highlightText, italicText, afterText,
+    description, buttonText, buttonUrl, isActive, order,
+  } = req.body;
 
   if (!title) throw new AppError("Title is required", 400);
 
@@ -77,6 +96,10 @@ export const createBanner = asyncHandler(async (req: Request, res: Response) => 
     image: imageUrl || undefined,
   });
 
+  // Invalidate caches
+  await CacheService.del(CACHE_ALL);
+  await CacheService.del(CACHE_ACTIVE);
+
   return sendSuccessResponse(res, 201, "Banner created successfully", banner);
 });
 
@@ -90,7 +113,10 @@ export const updateBanner = asyncHandler(async (req: Request, res: Response) => 
   const existing = await bannerService.getBannerById(id);
   if (!existing) throw new AppError("Banner not found", 404);
 
-  const { tag, title, highlightText, italicText, afterText, description, buttonText, buttonUrl, isActive, order } = req.body;
+  const {
+    tag, title, highlightText, italicText, afterText,
+    description, buttonText, buttonUrl, isActive, order,
+  } = req.body;
 
   let imageUrl: string | undefined;
   const file = req.file as Express.Multer.File | undefined;
@@ -105,11 +131,10 @@ export const updateBanner = asyncHandler(async (req: Request, res: Response) => 
       imageUrl = result.url;
       if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
 
-      // Cleanup old image
       if (existing.image) {
         const oldId = extractPublicId(existing.image);
         if (oldId) {
-          try { await deleteFromCloudinary(oldId, "image"); } catch(e) {}
+          try { await deleteFromCloudinary(oldId, "image"); } catch {}
         }
       }
     } catch (err: any) {
@@ -118,16 +143,23 @@ export const updateBanner = asyncHandler(async (req: Request, res: Response) => 
     }
   }
 
-  const updateData: any = { tag, title, highlightText, italicText, afterText, description, buttonText, buttonUrl };
+  const updateData: any = {
+    tag, title, highlightText, italicText, afterText, description, buttonText, buttonUrl,
+  };
 
   if (isActive !== undefined) updateData.isActive = isActive === "true" || isActive === true;
   if (order !== undefined) updateData.order = Number(order);
   if (imageUrl) updateData.image = imageUrl;
 
-  // Remove undefined keys
-  Object.keys(updateData).forEach(k => updateData[k] === undefined && delete updateData[k]);
+  Object.keys(updateData).forEach((k) => updateData[k] === undefined && delete updateData[k]);
 
   const banner = await bannerService.updateBanner(id, updateData);
+
+  // Invalidate caches
+  await CacheService.del(CACHE_ALL);
+  await CacheService.del(CACHE_ACTIVE);
+  await CacheService.del(cacheKey(id));
+
   return sendSuccessResponse(res, 200, "Banner updated successfully", banner);
 });
 
@@ -141,14 +173,18 @@ export const deleteBanner = asyncHandler(async (req: Request, res: Response) => 
   const banner = await bannerService.getBannerById(id);
   if (!banner) throw new AppError("Banner not found", 404);
 
-  // Cleanup image
   if (banner.image) {
     const publicId = extractPublicId(banner.image);
     if (publicId) {
-      try { await deleteFromCloudinary(publicId, "image"); } catch(e) {}
+      try { await deleteFromCloudinary(publicId, "image"); } catch {}
     }
   }
 
   await bannerService.deleteBanner(id);
+
+  await CacheService.del(CACHE_ALL);
+  await CacheService.del(CACHE_ACTIVE);
+  await CacheService.del(cacheKey(id));
+
   return sendSuccessResponse(res, 200, "Banner deleted successfully", null);
 });

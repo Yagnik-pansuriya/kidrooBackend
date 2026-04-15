@@ -61,14 +61,18 @@ const router = Router();
  *                 data:
  *                   type: object
  *                   properties:
- *                     user:
- *                       $ref: '#/components/schemas/User'
- *                     accessToken:
+ *                     id:
  *                       type: string
- *                       example: "eyJhbGciOiJIUzI1NiIs..."
- *                     refreshToken:
+ *                     name:
  *                       type: string
- *                       example: "eyJhbGciOiJIUzI1NiIs..."
+ *                     email:
+ *                       type: string
+ *                     role:
+ *                       type: string
+ *                     permissions:
+ *                       type: array
+ *                       items:
+ *                         type: object
  *       401:
  *         description: Invalid email or password
  *       400:
@@ -124,6 +128,11 @@ router.post("/logout", logout);
  *     responses:
  *       200:
  *         description: New access token generated
+ *         headers:
+ *           Set-Cookie:
+ *             schema:
+ *               type: string
+ *               example: "accessToken=new_jwt_token_here; HttpOnly; Secure"
  *         content:
  *           application/json:
  *             schema:
@@ -138,9 +147,16 @@ router.post("/logout", logout);
  *                 data:
  *                   type: object
  *                   properties:
- *                     accessToken:
+ *                     id:
  *                       type: string
- *                       example: "eyJhbGciOiJIUzI1NiIs..."
+ *                     email:
+ *                       type: string
+ *                     role:
+ *                       type: string
+ *                     permissions:
+ *                       type: array
+ *                       items:
+ *                         type: object
  *       401:
  *         description: Invalid or expired refresh token
  */
@@ -208,7 +224,7 @@ router.get("/me", authMiddleware, getCurrentUser);
  *                 minLength: 8
  *                 description: "Must contain uppercase, lowercase, number, and special character"
  *                 example: "NewPass456!@"
- *               confirmPassword:
+ *               passwordConfirm:
  *                 type: string
  *                 example: "NewPass456!@"
  *     responses:

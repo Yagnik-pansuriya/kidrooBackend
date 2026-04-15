@@ -5,7 +5,7 @@ import { newsletterService } from "../services/newsletterService";
 
 /**
  * POST /api/newsletter/subscribe
- * Public — subscribe an email to the newsletter
+ * Public — rate limited in route layer
  */
 export const subscribe = asyncHandler(async (req: Request, res: Response) => {
   const { email } = req.body;
@@ -15,16 +15,19 @@ export const subscribe = asyncHandler(async (req: Request, res: Response) => {
 
 /**
  * GET /api/newsletter
- * Admin — list all subscribers
+ * Admin — paginated list of subscribers
+ * MED-5: Added pagination, no longer returns unbounded result set
  */
 export const getAllSubscribers = asyncHandler(async (req: Request, res: Response) => {
-  const subscribers = await newsletterService.getAll();
-  return sendSuccessResponse(res, 200, "Subscribers fetched", subscribers);
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+  const result = await newsletterService.getAll(page, limit);
+  return sendSuccessResponse(res, 200, "Subscribers fetched", result);
 });
 
 /**
  * GET /api/newsletter/stats
- * Admin — get subscriber stats
+ * Admin — subscriber statistics
  */
 export const getStats = asyncHandler(async (req: Request, res: Response) => {
   const stats = await newsletterService.getStats();
@@ -33,7 +36,7 @@ export const getStats = asyncHandler(async (req: Request, res: Response) => {
 
 /**
  * DELETE /api/newsletter/:id
- * Admin — remove a subscriber
+ * Admin — remove a subscriber permanently
  */
 export const removeSubscriber = asyncHandler(async (req: Request, res: Response) => {
   await newsletterService.remove(req.params.id as string);
@@ -42,7 +45,7 @@ export const removeSubscriber = asyncHandler(async (req: Request, res: Response)
 
 /**
  * POST /api/newsletter/unsubscribe
- * Public — unsubscribe an email
+ * Public — rate limited in route layer
  */
 export const unsubscribe = asyncHandler(async (req: Request, res: Response) => {
   const { email } = req.body;

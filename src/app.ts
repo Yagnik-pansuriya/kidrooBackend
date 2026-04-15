@@ -6,7 +6,7 @@ import hpp from "hpp";
 import pinoHttp from "pino-http";
 import { v4 as uuidv4 } from "uuid";
 import cookieParser from "cookie-parser";
-import { globalErrorHandler } from "./middlewares/globle.middleware";
+import { globalErrorHandler } from "./middlewares/global.middleware";
 import { limiter } from "./middlewares/rateLimiter";
 import authRoutes from "./routes/authRoutes";
 import uploadRoutes from "./routes/uploadRoutes";
@@ -58,8 +58,8 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 app.use(
   cors({
     origin: function (origin, callback) {
-      // In development, allow all origins
-      if (!isProduction) {
+      // In development only, allow all origins
+      if (isDevelopment) {
         callback(null, true);
         return;
       }

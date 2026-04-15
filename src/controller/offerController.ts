@@ -115,8 +115,6 @@ export const createOffer = asyncHandler(
         throw new AppError("Only 1 image is allowed for this offer type", 400);
       }
 
-      console.log(`[INFO] Uploading ${files.length} images to Cloudinary...`);
-
       for (const file of files) {
         try {
           const result = await uploadToCloudinary(file.path, {

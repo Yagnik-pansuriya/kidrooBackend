@@ -233,8 +233,8 @@ export const updateVariant = asyncHandler(
       finalUpdateData.stock = Number(stock);
     }
 
-    if (imageUrls.length > 0) {
-      finalUpdateData.images = imageUrls;
+    if (finalImages && finalImages.length > 0) {
+      finalUpdateData.images = finalImages;
     }
 
     const variant = await variantService.updateVariant(variantId, finalUpdateData);
