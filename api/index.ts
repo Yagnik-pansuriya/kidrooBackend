@@ -15,12 +15,21 @@ if (!process.env.NODE_ENV) {
 }
 
 import { connectDB } from "../src/config/db";
+import { connectRedis } from "../src/config/redis";
 import app from "../src/app";
 
-// Ensure DB connection before handling any request
+// Cache the initialization promise across warm invocations
+let initialized = false;
+
+// Ensure DB + Redis connection before handling any request
 // The connectDB function caches the connection for serverless reuse
 const handler = async (req: any, res: any) => {
-  await connectDB();
+  if (!initialized) {
+    await connectDB();
+    // Redis is best-effort — server continues even if Redis fails
+    try { await connectRedis(); } catch { /* logged inside connectRedis */ }
+    initialized = true;
+  }
   return app(req, res);
 };
 

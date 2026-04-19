@@ -99,13 +99,23 @@ process.on("SIGUSR2", () => shutdown("SIGUSR2"));
 // Handle uncaught exceptions
 process.on("uncaughtException", (error) => {
   console.error("Uncaught Exception:", error);
-  process.exit(1);
+  // In production, attempt graceful shutdown instead of hard crash
+  if (isProduction) {
+    shutdown("UNCAUGHT_EXCEPTION");
+  } else {
+    process.exit(1);
+  }
 });
 
 // Handle unhandled promise rejections
+// DO NOT crash the server — log and continue. Transient DB/Redis errors
+// should not kill the entire production server.
 process.on("unhandledRejection", (reason, promise) => {
   console.error("Unhandled Rejection at:", promise, "reason:", reason);
-  process.exit(1);
+  // In development, crash to surface bugs early
+  if (!isProduction) {
+    process.exit(1);
+  }
 });
 
 

@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.ts",
+    "start": "node dist/index.js",
     "seed:admin": "ts-node scripts/seedAdmin.ts",
     "seed:data": "ts-node scripts/seedProducts.ts",
     "seed:all": "ts-node scripts/seedAll.ts",

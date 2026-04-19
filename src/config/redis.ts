@@ -5,10 +5,15 @@ const redisURL = process.env.REDIS_URL || "redis://localhost:6379";
 export const redis = new Redis(redisURL, {
   lazyConnect: true,
   maxRetriesPerRequest: 3,
+  retryStrategy(times) {
+    // Exponential backoff with max 30s
+    const delay = Math.min(times * 200, 30000);
+    return delay;
+  },
 });
 
 redis.on("error", (err) => {
-  console.error("Redis error:", err);
+  console.error("Redis error:", err.message);
 });
 
 redis.on("end", () => {
@@ -20,16 +25,21 @@ export const connectRedis = async () => {
     await redis.connect();
     console.log("Redis connection established");
   } catch (err) {
+    // Log the error but DON'T crash the server — let requests
+    // that don't need Redis still work. Redis failures are handled
+    // gracefully by the CacheService (operations return null / no-op).
     console.error("Redis connection ERROR! ==> ", err);
-    process.exit(1);
+    console.warn("⚠️  Server will continue without Redis cache. OTP and caching features may be unavailable.");
   }
 };
 
 export const disconnectRedis = async () => {
   try {
-    console.log("Closing Redis connection...");
-    await redis.quit();
-    console.log("Redis connection closed");
+    if (redis.status === "ready" || redis.status === "connecting") {
+      console.log("Closing Redis connection...");
+      await redis.quit();
+      console.log("Redis connection closed");
+    }
   } catch (error) {
     console.error("Error closing Redis connection", error);
   }

@@ -2,7 +2,7 @@ import crypto from "crypto";
 import Order from "../models/order";
 import Product from "../models/products";
 import Customer from "../models/customer";
-import razorpayInstance from "../config/razorpay";
+import { getRazorpayInstance } from "../config/razorpay";
 import AppError from "../utils/appError";
 import SiteSettings from "../models/siteSettings";
 
@@ -117,7 +117,7 @@ class OrderService {
    */
   async createRazorpayOrder(amount: number, receipt: string) {
     try {
-      const razorpayOrder = await razorpayInstance.orders.create({
+      const razorpayOrder = await getRazorpayInstance().orders.create({
         amount: Math.round(amount * 100), // Convert to paise (₹1 = 100 paise)
         currency: "INR",
         receipt: receipt,

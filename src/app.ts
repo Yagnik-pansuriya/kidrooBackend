@@ -92,6 +92,20 @@ app.use(
 
 app.use(hpp());
 
+// Body parsing MUST come before body sanitization
+app.use(
+  express.json({
+    limit: "10kb",
+    strict: true, 
+  }),
+);
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: "10kb",
+  }),
+);
+
 app.use((req, res, next) => {
   // Only sanitize JSON body payloads — multipart/form-data is parsed by Multer
   // and the raw string fields (like attributes JSON) must reach controllers intact.
@@ -153,18 +167,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(
-  express.json({
-    limit: "10kb",
-    strict: true, 
-  }),
-);
-app.use(
-  express.urlencoded({
-    extended: true,
-    limit: "10kb",
-  }),
-);
+// Body parsing is done above (before sanitization middleware)
 
 app.get("/health", (req, res) => {
   res.json({
