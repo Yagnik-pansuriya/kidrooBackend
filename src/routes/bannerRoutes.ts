@@ -100,7 +100,7 @@ router.get("/:id", getBannerById);
 router.post(
   "/",
   authMiddleware,
-  authorizationMiddleware(["admin"]),
+  authorizationMiddleware(["admin", "moderator"]),
   checkPermission("/banners"),
   validateRequest(createBannerSchema), // HIGH-7: validated before upload to avoid wasted I/O
   uploadSingle("image"),
@@ -145,7 +145,7 @@ router.post(
 router.put(
   "/:id",
   authMiddleware,
-  authorizationMiddleware(["admin"]),
+  authorizationMiddleware(["admin", "moderator"]),
   checkPermission("/banners"),
   validateRequest(updateBannerSchema), // HIGH-7: validated before upload
   uploadSingle("image"),
@@ -173,7 +173,7 @@ router.put(
 router.delete(
   "/:id",
   authMiddleware,
-  authorizationMiddleware(["admin"]),
+  authorizationMiddleware(["admin", "moderator"]),
   checkPermission("/banners"),
   deleteBanner,
 );

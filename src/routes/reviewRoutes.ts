@@ -8,6 +8,7 @@ import {
   toggleReviewApproval,
 } from "../controller/reviewController";
 import { authMiddleware, authorizationMiddleware } from "../middlewares/authMiddleware";
+import { checkPermission } from "../middlewares/permissionMiddleware";
 import { validateRequest } from "../middlewares/validateRequest";
 import { limiter } from "../middlewares/rateLimiter";
 import { addReviewSchema } from "../utils/validators/reviewValidators";
@@ -119,7 +120,7 @@ router.post("/product/:productId", limiter, validateRequest(addReviewSchema), ad
  *       200:
  *         description: Successfully retrieved all reviews (paginated)
  */
-router.get("/", authMiddleware, authorizationMiddleware(["admin"]), getAllReviews);
+router.get("/", authMiddleware, authorizationMiddleware(["admin", "moderator"]), checkPermission("/reviews"), getAllReviews);
 
 /**
  * @swagger
@@ -137,7 +138,7 @@ router.get("/", authMiddleware, authorizationMiddleware(["admin"]), getAllReview
  *       200:
  *         description: Review successfully deleted
  */
-router.delete("/:id", authMiddleware, authorizationMiddleware(["admin"]), deleteReview);
+router.delete("/:id", authMiddleware, authorizationMiddleware(["admin", "moderator"]), checkPermission("/reviews"), deleteReview);
 
 /**
  * @swagger
@@ -155,6 +156,6 @@ router.delete("/:id", authMiddleware, authorizationMiddleware(["admin"]), delete
  *       200:
  *         description: Approval successfully toggled
  */
-router.patch("/:id/toggle", authMiddleware, authorizationMiddleware(["admin"]), toggleReviewApproval);
+router.patch("/:id/toggle", authMiddleware, authorizationMiddleware(["admin", "moderator"]), checkPermission("/reviews"), toggleReviewApproval);
 
 export default router;

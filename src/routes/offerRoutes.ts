@@ -130,7 +130,7 @@ router.get("/:id", getOfferById);
 router.post(
   "/",
   authMiddleware,
-  authorizationMiddleware(["admin"]),
+  authorizationMiddleware(["admin", "moderator"]),
   checkPermission("/offers"),
   uploadMultiple("images", 5),
   validateRequest(createOfferSchema),
@@ -200,7 +200,7 @@ router.post(
 router.put(
   "/:id",
   authMiddleware,
-  authorizationMiddleware(["admin"]),
+  authorizationMiddleware(["admin", "moderator"]),
   checkPermission("/offers"),
   uploadMultiple("images", 5),
   validateRequest(updateOfferSchema),
@@ -230,7 +230,7 @@ router.put(
 router.delete(
   "/:id",
   authMiddleware,
-  authorizationMiddleware(["admin"]),
+  authorizationMiddleware(["admin", "moderator"]),
   checkPermission("/offers"),
   deleteOffer,
 );

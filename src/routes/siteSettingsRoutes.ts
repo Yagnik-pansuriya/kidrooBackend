@@ -73,7 +73,7 @@ router.get("/", getSettings);
 router.put(
   "/",
   authMiddleware,
-  authorizationMiddleware(["admin"]),
+  authorizationMiddleware(["admin", "moderator"]),
   checkPermission("/site-settings"),
   uploadSingle("logo"),
   updateSettings,

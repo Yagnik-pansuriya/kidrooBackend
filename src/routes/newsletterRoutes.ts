@@ -108,7 +108,7 @@ router.post("/unsubscribe", limiter, validateRequest(emailSchema), unsubscribe);
  *       200:
  *         description: Subscriber list fetched successfully (paginated)
  */
-router.get("/", authMiddleware, authorizationMiddleware(["admin"]), getAllSubscribers);
+router.get("/", authMiddleware, authorizationMiddleware(["admin", "moderator"]), checkPermission("/newsletter"), getAllSubscribers);
 
 /**
  * @swagger
@@ -122,7 +122,7 @@ router.get("/", authMiddleware, authorizationMiddleware(["admin"]), getAllSubscr
  *       200:
  *         description: Stats fetched successfully
  */
-router.get("/stats", authMiddleware, authorizationMiddleware(["admin"]), getStats);
+router.get("/stats", authMiddleware, authorizationMiddleware(["admin", "moderator"]), checkPermission("/newsletter"), getStats);
 
 /**
  * @swagger
@@ -142,6 +142,6 @@ router.get("/stats", authMiddleware, authorizationMiddleware(["admin"]), getStat
  *       200:
  *         description: Subscriber deleted successfully
  */
-router.delete("/:id", authMiddleware, authorizationMiddleware(["admin"]), checkPermission("/newsletter"), removeSubscriber);
+router.delete("/:id", authMiddleware, authorizationMiddleware(["admin", "moderator"]), checkPermission("/newsletter"), removeSubscriber);
 
 export default router;

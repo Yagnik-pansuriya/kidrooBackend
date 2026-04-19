@@ -73,7 +73,7 @@ router.get("/:id", getSkillById);
 router.post(
   "/",
   authMiddleware,
-  authorizationMiddleware(["admin"]),
+  authorizationMiddleware(["admin", "moderator"]),
   upload.fields([{ name: "image", maxCount: 1 }]),
   checkPermission("/skills"),
   createSkill,
@@ -111,7 +111,7 @@ router.post(
 router.put(
   "/:id",
   authMiddleware,
-  authorizationMiddleware(["admin"]),
+  authorizationMiddleware(["admin", "moderator"]),
   upload.fields([{ name: "image", maxCount: 1 }]),
   checkPermission("/skills"),
   updateSkill,
@@ -136,7 +136,7 @@ router.put(
 router.delete(
   "/:id",
   authMiddleware,
-  authorizationMiddleware(["admin"]),
+  authorizationMiddleware(["admin", "moderator"]),
   checkPermission("/skills"),
   deleteSkill,
 );

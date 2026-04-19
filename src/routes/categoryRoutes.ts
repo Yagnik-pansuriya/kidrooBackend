@@ -31,7 +31,7 @@ router.get("/", getAllCategories);
 router.put(
   "/reorder",
   authMiddleware,
-  authorizationMiddleware(["admin"]),
+  authorizationMiddleware(["admin", "moderator"]),
   reorderCategories
 );
 
@@ -87,7 +87,7 @@ router.get("/:id", getCategoryById);
 router.post(
   "/",
   authMiddleware,
-  authorizationMiddleware(["admin"]),
+  authorizationMiddleware(["admin", "moderator"]),
   upload.fields([{ name: "image", maxCount: 1 }, { name: "icon", maxCount: 1 }]),
   checkPermission("/categories"),
   validateRequest(createCategorySchema),
@@ -131,7 +131,7 @@ router.post(
 router.put(
   "/:id",
   authMiddleware,
-  authorizationMiddleware(["admin"]),
+  authorizationMiddleware(["admin", "moderator"]),
   upload.fields([{ name: "image", maxCount: 1 }, { name: "icon", maxCount: 1 }]),
   checkPermission("/categories"),
   validateRequest(updateCategorySchema),
@@ -157,7 +157,7 @@ router.put(
 router.delete(
   "/:id",
   authMiddleware,
-  authorizationMiddleware(["admin"]),
+  authorizationMiddleware(["admin", "moderator"]),
   checkPermission("/categories"),
   deleteCategory
 );

@@ -24,7 +24,7 @@ router.use(authMiddleware, authorizationMiddleware(["admin"]));
  *       200:
  *         description: Successfully retrieved user list
  */
-router.get("/", UserController.listUsers);
+router.get("/", checkPermission("/users"), UserController.listUsers);
 
 /**
  * @swagger
@@ -42,7 +42,7 @@ router.get("/", UserController.listUsers);
  *       200:
  *         description: Successfully retrieved user
  */
-router.get("/:id", UserController.getUser);
+router.get("/:id", checkPermission("/users"), UserController.getUser);
 
 /**
  * @swagger
