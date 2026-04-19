@@ -120,6 +120,7 @@ export const createProduct = asyncHandler(
       hasGuarantee,
       guaranteePeriod,
       guaranteeTerms,
+      skills: rawSkillsCreate,
     } = req.body;
 
     // Normalize: legacy single 'category' → array; new 'categories' array → use directly
@@ -131,6 +132,15 @@ export const createProduct = asyncHandler(
         return arr.filter(Boolean);
       }
       if (legacy) return [legacy];
+      return [];
+    })();
+
+    // Normalize skills array
+    const resolvedSkillsCreate = (() => {
+      if (rawSkillsCreate !== undefined) {
+        const arr = Array.isArray(rawSkillsCreate) ? rawSkillsCreate : (typeof rawSkillsCreate === "string" ? rawSkillsCreate.split(",").map((s: string) => s.trim()) : [rawSkillsCreate]);
+        return arr.filter(Boolean);
+      }
       return [];
     })();
 
@@ -229,6 +239,7 @@ export const createProduct = asyncHandler(
       hasGuarantee: hasGuarantee === "true" || hasGuarantee === true,
       guaranteePeriod: guaranteePeriod ? Number(guaranteePeriod) : undefined,
       guaranteeTerms: guaranteeTerms,
+      skills: resolvedSkillsCreate,
     } as any);
 
     // ── Auto-create a default variant ──────────────────────────────
@@ -294,6 +305,7 @@ export const updateProduct = asyncHandler(
       hasGuarantee,
       guaranteePeriod,
       guaranteeTerms,
+      skills: rawSkillsUpdate,
     } = req.body;
 
     // Parse JSON fields
@@ -364,6 +376,12 @@ export const updateProduct = asyncHandler(
     };
 
     if (resolvedCategoriesUpdate !== undefined) updateData.categories = resolvedCategoriesUpdate;
+
+    // Normalize skills for update
+    if (rawSkillsUpdate !== undefined) {
+      const arr = Array.isArray(rawSkillsUpdate) ? rawSkillsUpdate : (typeof rawSkillsUpdate === "string" ? rawSkillsUpdate.split(",").map((s: string) => s.trim()) : [rawSkillsUpdate]);
+      updateData.skills = arr.filter(Boolean);
+    }
 
     if (featured !== undefined) updateData.featured = featured === "true" || featured === true;
     if (newArrival !== undefined) updateData.newArrival = newArrival === "true" || newArrival === true;

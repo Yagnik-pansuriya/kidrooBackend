@@ -26,6 +26,7 @@ export interface IProduct {
   hasVariants?: boolean;
   position?: number;
   variants?: mongoose.Schema.Types.ObjectId[];
+  skills?: mongoose.Schema.Types.ObjectId[];
   hasWarranty?: boolean;
   warrantyPeriod?: number;
   warrantyType?: 'manufacturer' | 'seller';
@@ -142,6 +143,12 @@ const productSchema = new mongoose.Schema<IProduct>(
       type: Number,
       default: 0,
     },
+    skills: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Skill",
+      },
+    ],
     hasWarranty: {
       type: Boolean,
       default: false,

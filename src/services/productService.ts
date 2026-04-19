@@ -54,7 +54,7 @@ class ProductService {
       query: query,
       filter: filter,
       sort: sort || { position: 1, createdAt: -1 },
-      populate: ["categories", "variants"]
+      populate: ["categories", "variants", "skills"]
     });
   }
 
@@ -106,7 +106,7 @@ class ProductService {
       variantMatch.status = "active";
     }
 
-    const product = await Product.findById(id).populate("categories").populate({
+    const product = await Product.findById(id).populate("categories").populate("skills").populate({
       path: "variants",
       match: variantMatch
     }).lean();

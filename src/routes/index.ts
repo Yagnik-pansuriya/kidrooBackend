@@ -12,6 +12,7 @@ import reviewRoutes from "./reviewRoutes";
 import bannerRoutes from "./bannerRoutes";
 import customerAuthRoutes from "./customerAuthRoutes";
 import customerRoutes from "./customerRoutes";
+import skillRoutes from "./skillRoutes";
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use("/reviews", reviewRoutes);
 router.use("/banners", bannerRoutes);
 router.use("/customer/auth", customerAuthRoutes);
 router.use("/customer", customerRoutes);
+router.use("/skills", skillRoutes);
 
 export default router;
