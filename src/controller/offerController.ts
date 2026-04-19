@@ -139,7 +139,7 @@ export const createOffer = asyncHandler(
       title,
       subtitle,
       description,
-      discountPercentage: discountPercentage ? Number(discountPercentage) : undefined,
+      discountPercentage: discountPercentage !== undefined ? (isNaN(Number(discountPercentage)) ? 0 : Number(discountPercentage)) : undefined,
       validity,
       isActive: isActive !== undefined ? isActive === "true" || isActive === true : true,
       type,
@@ -259,7 +259,8 @@ export const updateOffer = asyncHandler(
     };
 
     if (discountPercentage !== undefined) {
-      updateData.discountPercentage = Number(discountPercentage);
+      const n = Number(discountPercentage);
+      updateData.discountPercentage = isNaN(n) ? 0 : n;
     }
 
     if (isFeatured !== undefined) {

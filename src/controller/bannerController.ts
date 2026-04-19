@@ -148,7 +148,10 @@ export const updateBanner = asyncHandler(async (req: Request, res: Response) => 
   };
 
   if (isActive !== undefined) updateData.isActive = isActive === "true" || isActive === true;
-  if (order !== undefined) updateData.order = Number(order);
+  if (order !== undefined) {
+    const n = Number(order);
+    updateData.order = isNaN(n) ? 0 : n;
+  }
   if (imageUrl) updateData.image = imageUrl;
 
   Object.keys(updateData).forEach((k) => updateData[k] === undefined && delete updateData[k]);

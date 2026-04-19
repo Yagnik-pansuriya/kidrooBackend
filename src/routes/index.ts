@@ -13,6 +13,8 @@ import bannerRoutes from "./bannerRoutes";
 import customerAuthRoutes from "./customerAuthRoutes";
 import customerRoutes from "./customerRoutes";
 import skillRoutes from "./skillRoutes";
+import orderRoutes from "./orderRoutes";
+import customerOrderRoutes from "./customerOrderRoutes";
 
 const router = Router();
 
@@ -28,7 +30,9 @@ router.use("/newsletter", newsletterRoutes);
 router.use("/reviews", reviewRoutes);
 router.use("/banners", bannerRoutes);
 router.use("/customer/auth", customerAuthRoutes);
+router.use("/customer/orders", customerOrderRoutes);
 router.use("/customer", customerRoutes);
 router.use("/skills", skillRoutes);
+router.use("/orders", orderRoutes);
 
 export default router;

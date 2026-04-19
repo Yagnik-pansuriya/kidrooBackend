@@ -197,7 +197,10 @@ export const updateCategory = asyncHandler(
       slug,
     };
 
-    if (count !== undefined) updateData.count = Number(count);
+    if (count !== undefined) {
+      const n = Number(count);
+      updateData.count = isNaN(n) ? 0 : n;
+    }
     if (imageUrl !== undefined) updateData.image = imageUrl;
     if (iconUrl !== undefined) updateData.icon = iconUrl;
 

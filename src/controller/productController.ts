@@ -174,9 +174,16 @@ export const createProduct = asyncHandler(
       throw new AppError("Slug already exists", 400);
     }
 
-    const parsedPrice = Number(price) || 0;
-    const parsedOriginalPrice = originalPrice ? Number(originalPrice) : parsedPrice;
-    let parsedStock = Number(stock) || 0;
+    // Safe number helper: empty string, null, undefined all → 0
+    const safeNum = (v: any): number => {
+      if (v === '' || v === null || v === undefined) return 0;
+      const n = Number(v);
+      return isNaN(n) ? 0 : n;
+    };
+
+    const parsedPrice = safeNum(price);
+    const parsedOriginalPrice = originalPrice ? safeNum(originalPrice) : parsedPrice;
+    let parsedStock = safeNum(stock);
     
     // Check final hasVariants
     const finalHasVariants = hasVariants === undefined ? true : (hasVariants === "true" || hasVariants === true);
@@ -234,10 +241,10 @@ export const createProduct = asyncHandler(
       hasVariants: finalHasVariants,
       youtubeUrl: youtubeUrl || '',
       hasWarranty: hasWarranty === "true" || hasWarranty === true,
-      warrantyPeriod: warrantyPeriod ? Number(warrantyPeriod) : undefined,
+      warrantyPeriod: warrantyPeriod ? safeNum(warrantyPeriod) : undefined,
       warrantyType: warrantyType,
       hasGuarantee: hasGuarantee === "true" || hasGuarantee === true,
-      guaranteePeriod: guaranteePeriod ? Number(guaranteePeriod) : undefined,
+      guaranteePeriod: guaranteePeriod ? safeNum(guaranteePeriod) : undefined,
       guaranteeTerms: guaranteeTerms,
       skills: resolvedSkillsCreate,
     } as any);
@@ -250,7 +257,7 @@ export const createProduct = asyncHandler(
       attributes: new Map([["Type", "Default"]]) as any,
       price: parsedPrice,
       originalPrice: parsedOriginalPrice,
-      stock: Number(stock) || 0, // Variant gets the actual stock amount
+      stock: safeNum(stock), // Variant gets the actual stock amount
       images: imageUrls,
       status: "active",
       isDefault: true,
@@ -364,6 +371,13 @@ export const updateProduct = asyncHandler(
       }
     }
 
+    // Safe number helper: empty string, null, undefined all → 0
+    const safeNum = (v: any): number => {
+      if (v === '' || v === null || v === undefined) return 0;
+      const n = Number(v);
+      return isNaN(n) ? 0 : n;
+    };
+
     const updateData: any = {
       productName,
       slug,
@@ -388,12 +402,12 @@ export const updateProduct = asyncHandler(
     if (bestSeller !== undefined) updateData.bestSeller = bestSeller === "true" || bestSeller === true;
     if (isActive !== undefined) updateData.isActive = isActive === "true" || isActive === true;
     if (hasVariants !== undefined) updateData.hasVariants = hasVariants === "true" || hasVariants === true;
-    if (stock !== undefined) updateData.stock = Number(stock) || 0;
+    if (stock !== undefined) updateData.stock = safeNum(stock);
 
     if (hasWarranty !== undefined) updateData.hasWarranty = hasWarranty === "true" || hasWarranty === true;
-    if (warrantyPeriod !== undefined) updateData.warrantyPeriod = Number(warrantyPeriod) || 0;
+    if (warrantyPeriod !== undefined) updateData.warrantyPeriod = safeNum(warrantyPeriod);
     if (hasGuarantee !== undefined) updateData.hasGuarantee = hasGuarantee === "true" || hasGuarantee === true;
-    if (guaranteePeriod !== undefined) updateData.guaranteePeriod = Number(guaranteePeriod) || 0;
+    if (guaranteePeriod !== undefined) updateData.guaranteePeriod = safeNum(guaranteePeriod);
 
     if (imageUrls.length > 0) {
       updateData.image = imageUrls[0];
@@ -402,8 +416,8 @@ export const updateProduct = asyncHandler(
 
     // Replace undefined variables with properties from req.body or existing Product if needed, particularly for pricing
     if (price !== undefined || originalPrice !== undefined) {
-      const p = price !== undefined ? Number(price) : existingProduct.price;
-      const op = originalPrice !== undefined ? Number(originalPrice) : existingProduct.originalPrice;
+      const p = price !== undefined ? safeNum(price) : existingProduct.price;
+      const op = originalPrice !== undefined ? safeNum(originalPrice) : existingProduct.originalPrice;
       updateData.price = p;
       updateData.originalPrice = op;
       updateData.discountPercentage = op > 0 && op > p ? Math.round(((op - p) / op) * 100) : 0;
@@ -413,15 +427,24 @@ export const updateProduct = asyncHandler(
     const finalHasVariants = hasVariants !== undefined ? updateData.hasVariants : existingProduct.hasVariants;
     if (finalHasVariants) updateData.stock = 0;
 
+    // Clean up undefined fields so they don't overwrite existing values in MongoDB
+    Object.keys(updateData).forEach((key) => {
+      if (updateData[key] === undefined) delete updateData[key];
+    });
+
+    // CRITICAL: Never overwrite the variants array during product update.
+    // Variants are managed exclusively by variant CRUD endpoints and syncDefaultVariant.
+    delete updateData.variants;
+
     const product = await productService.updateProduct(id, updateData);
 
     // Sync default variant with parent product data
     // Default variants are fully dependent on the product — they cannot be edited independently
     if (finalHasVariants) {
       const variantSyncData: any = {};
-      if (price !== undefined) variantSyncData.price = Number(price);
-      if (originalPrice !== undefined) variantSyncData.originalPrice = Number(originalPrice);
-      if (stock !== undefined) variantSyncData.stock = Number(stock);
+      if (price !== undefined) variantSyncData.price = safeNum(price);
+      if (originalPrice !== undefined) variantSyncData.originalPrice = safeNum(originalPrice);
+      if (stock !== undefined) variantSyncData.stock = safeNum(stock);
       if (imageUrls.length > 0) variantSyncData.images = imageUrls;
       if (youtubeUrl !== undefined) variantSyncData.youtubeUrl = youtubeUrl;
       if (isActive !== undefined) {
@@ -436,7 +459,11 @@ export const updateProduct = asyncHandler(
     await CacheService.delPattern("products:page:*");
     await CacheService.del(`product:${id}`);
 
-    return sendSuccessResponse(res, 200, "Product updated successfully", product);
+    // Re-fetch with populated variants/categories so the response
+    // includes updated variant stock values for the frontend
+    const populatedProduct = await productService.getProductById(id, true);
+
+    return sendSuccessResponse(res, 200, "Product updated successfully", populatedProduct);
   },
 );
 

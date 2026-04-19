@@ -12,6 +12,7 @@ import fs from "fs";
 /**
  * Get Site Settings
  * GET /api/v1/site-settings
+ * Note: razorpayConfig.keySecret is excluded via select:false in schema
  */
 export const getSettings = asyncHandler(async (req: Request, res: Response) => {
   const settings = await siteSettingsService.getSettings();
@@ -24,7 +25,7 @@ export const getSettings = asyncHandler(async (req: Request, res: Response) => {
  */
 export const updateSettings = asyncHandler(async (req: Request, res: Response) => {
   const existingSettings = await siteSettingsService.getSettings();
-  let { siteName, tagline, contactEmail, contactPhone, themeColors } = req.body;
+  let { siteName, tagline, contactEmail, contactPhone, themeColors, paymentMethods, razorpayKeyId, razorpayKeySecret } = req.body;
 
   // Smartly handle themeColors: parse if string, and ensure it's an object
   let parsedThemeColors = themeColors;
@@ -40,6 +41,20 @@ export const updateSettings = asyncHandler(async (req: Request, res: Response) =
   // Ensure we have a valid object for themeColors, otherwise fallback to existing
   if (!parsedThemeColors || typeof parsedThemeColors !== "object") {
     parsedThemeColors = existingSettings.themeColors;
+  }
+
+  // Handle paymentMethods: parse if string
+  let parsedPaymentMethods = paymentMethods;
+  if (typeof paymentMethods === "string") {
+    try {
+      parsedPaymentMethods = JSON.parse(paymentMethods);
+    } catch (e) {
+      console.warn("Failed to parse paymentMethods JSON, using existing or defaults");
+      parsedPaymentMethods = existingSettings.paymentMethods;
+    }
+  }
+  if (!parsedPaymentMethods || typeof parsedPaymentMethods !== "object") {
+    parsedPaymentMethods = existingSettings.paymentMethods;
   }
 
   let logoUrl = existingSettings.logo;
@@ -70,14 +85,36 @@ export const updateSettings = asyncHandler(async (req: Request, res: Response) =
     }
   }
 
-  const updatedSettings = await siteSettingsService.updateSettings({
+  // Build razorpay config update (only update fields that were provided)
+  const razorpayConfig: any = {};
+  if (razorpayKeyId !== undefined) {
+    razorpayConfig.keyId = razorpayKeyId;
+  }
+  if (razorpayKeySecret !== undefined && razorpayKeySecret !== "") {
+    razorpayConfig.keySecret = razorpayKeySecret;
+  }
+
+  const updateData: any = {
     siteName,
     tagline,
     contactEmail,
     contactPhone,
     themeColors: parsedThemeColors,
     logo: logoUrl || "",
-  });
+    paymentMethods: parsedPaymentMethods,
+  };
+
+  // Only update razorpay config fields if provided
+  if (Object.keys(razorpayConfig).length > 0) {
+    if (razorpayConfig.keyId !== undefined) {
+      updateData["razorpayConfig.keyId"] = razorpayConfig.keyId;
+    }
+    if (razorpayConfig.keySecret !== undefined) {
+      updateData["razorpayConfig.keySecret"] = razorpayConfig.keySecret;
+    }
+  }
+
+  const updatedSettings = await siteSettingsService.updateSettings(updateData);
 
   return sendSuccessResponse(res, 200, "Settings updated successfully", updatedSettings);
 });

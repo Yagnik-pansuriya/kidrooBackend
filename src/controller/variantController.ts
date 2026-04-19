@@ -103,16 +103,23 @@ export const createVariant = asyncHandler(
       );
     }
 
+    // Safe number helper: empty string, null, undefined all → 0
+    const safeNum = (v: any): number => {
+      if (v === '' || v === null || v === undefined) return 0;
+      const n = Number(v);
+      return isNaN(n) ? 0 : n;
+    };
+
     const variant = await variantService.createVariant({
       product: productId as any,
       sku: String(sku || "").trim().toUpperCase(),
       barcode,
       attributes,
-      price: Number(price),
-      originalPrice: originalPrice ? Number(originalPrice) : undefined,
-      stock: stock !== undefined ? Number(stock) : 0,
-      lowStockAlert: lowStockAlert ? Number(lowStockAlert) : undefined,
-      weight: weight ? Number(weight) : undefined,
+      price: safeNum(price),
+      originalPrice: originalPrice !== undefined ? safeNum(originalPrice) : undefined,
+      stock: safeNum(stock),
+      lowStockAlert: lowStockAlert !== undefined ? safeNum(lowStockAlert) : undefined,
+      weight: weight !== undefined ? safeNum(weight) : undefined,
       dimensions,
       images: imageUrls,
       status: safeStatus,
@@ -219,33 +226,44 @@ export const updateVariant = asyncHandler(
 
 
 
+    // Safe number helper: empty string, null, undefined all → 0
+    const safeNum = (v: any): number => {
+      if (v === '' || v === null || v === undefined) return 0;
+      const n = Number(v);
+      return isNaN(n) ? 0 : n;
+    };
+
     // Sanitize status if provided
     const validStatuses = ["active", "inactive", "out_of_stock"];
     if (updateData.status && !validStatuses.includes(updateData.status)) {
       updateData.status = "active";
     }
 
-    if (updateData.price !== undefined) updateData.price = Number(updateData.price);
-    if (updateData.originalPrice !== undefined) updateData.originalPrice = Number(updateData.originalPrice);
-    if (stock !== undefined) updateData.stock = Number(stock);
-    if (updateData.lowStockAlert !== undefined) updateData.lowStockAlert = Number(updateData.lowStockAlert);
-    if (updateData.weight !== undefined) updateData.weight = Number(updateData.weight);
+    if (updateData.price !== undefined) updateData.price = safeNum(updateData.price);
+    if (updateData.originalPrice !== undefined) updateData.originalPrice = safeNum(updateData.originalPrice);
+    if (stock !== undefined) updateData.stock = safeNum(stock);
+    if (updateData.lowStockAlert !== undefined) updateData.lowStockAlert = safeNum(updateData.lowStockAlert);
+    if (updateData.weight !== undefined) updateData.weight = safeNum(updateData.weight);
     if (updateData.isDefault !== undefined) updateData.isDefault = updateData.isDefault === "true" || updateData.isDefault === true;
 
     const finalUpdateData: any = {
       ...updateData,
-      stock,       // include stock if provided
       attributes,
       dimensions,
     };
 
     if (stock !== undefined) {
-      finalUpdateData.stock = Number(stock);
+      finalUpdateData.stock = safeNum(stock);
     }
 
     if (finalImages && finalImages.length > 0) {
       finalUpdateData.images = finalImages;
     }
+
+    // Clean up undefined fields so they don't overwrite existing values in MongoDB
+    Object.keys(finalUpdateData).forEach((key) => {
+      if (finalUpdateData[key] === undefined) delete finalUpdateData[key];
+    });
 
     const variant = await variantService.updateVariant(variantId, finalUpdateData);
 

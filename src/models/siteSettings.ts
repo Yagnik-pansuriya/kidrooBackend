@@ -12,6 +12,14 @@ export interface ISiteSettings {
     header: string;
     footer: string;
   };
+  paymentMethods: {
+    onlinePayment: boolean;
+    cashOnDelivery: boolean;
+  };
+  razorpayConfig: {
+    keyId: string;
+    keySecret: string;
+  };
 }
 
 const siteSettingsSchema = new mongoose.Schema<ISiteSettings>(
@@ -61,6 +69,27 @@ const siteSettingsSchema = new mongoose.Schema<ISiteSettings>(
         type: String,
         required: true,
         default: "#031268",
+      },
+    },
+    paymentMethods: {
+      onlinePayment: {
+        type: Boolean,
+        default: true,
+      },
+      cashOnDelivery: {
+        type: Boolean,
+        default: false,
+      },
+    },
+    razorpayConfig: {
+      keyId: {
+        type: String,
+        default: "",
+      },
+      keySecret: {
+        type: String,
+        default: "",
+        select: false,  // Never return keySecret in queries by default
       },
     },
   },
