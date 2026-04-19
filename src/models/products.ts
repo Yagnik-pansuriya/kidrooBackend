@@ -8,7 +8,7 @@ export interface IProduct {
   originalPrice: number;
   discountPercentage?: number;
   stock: number;
-  category?: mongoose.Schema.Types.ObjectId;
+  categories?: mongoose.Schema.Types.ObjectId[];
   image: string;
   images: string[];
   ratings?: number;
@@ -25,7 +25,13 @@ export interface IProduct {
   youtubeUrl?: string;
   hasVariants?: boolean;
   position?: number;
-  variants?: mongoose.Schema.Types.ObjectId[]; // Add this line
+  variants?: mongoose.Schema.Types.ObjectId[];
+  hasWarranty?: boolean;
+  warrantyPeriod?: number;
+  warrantyType?: 'manufacturer' | 'seller';
+  hasGuarantee?: boolean;
+  guaranteePeriod?: number;
+  guaranteeTerms?: string;
 }
 
 const productSchema = new mongoose.Schema<IProduct>(
@@ -60,10 +66,12 @@ const productSchema = new mongoose.Schema<IProduct>(
       type: Number,
       required: true,
     },
-    category: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
-    },
+    categories: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Category",
+      },
+    ],
     image: {
       type: String,
       required: true,
@@ -133,6 +141,27 @@ const productSchema = new mongoose.Schema<IProduct>(
     position: {
       type: Number,
       default: 0,
+    },
+    hasWarranty: {
+      type: Boolean,
+      default: false,
+    },
+    warrantyPeriod: {
+      type: Number,
+    },
+    warrantyType: {
+      type: String,
+      enum: ["manufacturer", "seller"],
+    },
+    hasGuarantee: {
+      type: Boolean,
+      default: false,
+    },
+    guaranteePeriod: {
+      type: Number,
+    },
+    guaranteeTerms: {
+      type: String,
     },
   },
   { timestamps: true },

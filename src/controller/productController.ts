@@ -104,7 +104,8 @@ export const createProduct = asyncHandler(
       price,
       originalPrice,
       stock,
-      category,
+      category: legacyCategoryCreate,
+      categories: rawCategoriesCreate,
       featured,
       newArrival,
       bestSeller,
@@ -113,7 +114,26 @@ export const createProduct = asyncHandler(
       isActive,
       hasVariants,
       youtubeUrl,
+      hasWarranty,
+      warrantyPeriod,
+      warrantyType,
+      hasGuarantee,
+      guaranteePeriod,
+      guaranteeTerms,
     } = req.body;
+
+    // Normalize: legacy single 'category' → array; new 'categories' array → use directly
+    const resolvedCategoriesCreate = (() => {
+      const raw = rawCategoriesCreate;
+      const legacy = legacyCategoryCreate;
+      if (raw !== undefined) {
+        const arr = Array.isArray(raw) ? raw : (typeof raw === "string" ? raw.split(",").map((s: string) => s.trim()) : [raw]);
+        return arr.filter(Boolean);
+      }
+      if (legacy) return [legacy];
+      return [];
+    })();
+
 
     // Parse JSON fields if they are strings (from form-data)
     const parseField = (field: any) => {
@@ -130,8 +150,12 @@ export const createProduct = asyncHandler(
     tags = parseField(tags);
     ageRange = parseField(ageRange);
 
-    if (category && !mongoose.isValidObjectId(category)) {
-      throw new AppError("Invalid category ID", 400);
+    if (resolvedCategoriesCreate.length > 0) {
+      for (const catId of resolvedCategoriesCreate) {
+        if (catId && !mongoose.isValidObjectId(catId)) {
+          throw new AppError(`Invalid category ID: ${catId}`, 400);
+        }
+      }
     }
 
     // Slug unique check
@@ -186,7 +210,7 @@ export const createProduct = asyncHandler(
       originalPrice: parsedOriginalPrice,
       discountPercentage,
       stock: parsedStock,
-      category,
+      categories: resolvedCategoriesCreate,
       image: imageUrls[0],
       images: imageUrls,
       ratings: 0,
@@ -199,6 +223,12 @@ export const createProduct = asyncHandler(
       isActive: isActive === "true" || isActive === true,
       hasVariants: finalHasVariants,
       youtubeUrl: youtubeUrl || '',
+      hasWarranty: hasWarranty === "true" || hasWarranty === true,
+      warrantyPeriod: warrantyPeriod ? Number(warrantyPeriod) : undefined,
+      warrantyType: warrantyType,
+      hasGuarantee: hasGuarantee === "true" || hasGuarantee === true,
+      guaranteePeriod: guaranteePeriod ? Number(guaranteePeriod) : undefined,
+      guaranteeTerms: guaranteeTerms,
     } as any);
 
     // ── Auto-create a default variant ──────────────────────────────
@@ -248,7 +278,8 @@ export const updateProduct = asyncHandler(
       price,
       originalPrice,
       stock,
-      category,
+      category: legacyCategoryUpdate,
+      categories: rawCategoriesUpdate,
       featured,
       newArrival,
       bestSeller,
@@ -257,6 +288,12 @@ export const updateProduct = asyncHandler(
       isActive,
       hasVariants,
       youtubeUrl,
+      hasWarranty,
+      warrantyPeriod,
+      warrantyType,
+      hasGuarantee,
+      guaranteePeriod,
+      guaranteeTerms,
     } = req.body;
 
     // Parse JSON fields
@@ -270,8 +307,23 @@ export const updateProduct = asyncHandler(
     tags = parseField(tags);
     ageRange = parseField(ageRange);
 
-    if (category && !mongoose.isValidObjectId(category)) {
-      throw new AppError("Invalid category ID format", 400);
+    // Normalize categories for update
+    const parseCategories = (raw: any, legacy: any): string[] | undefined => {
+      if (raw !== undefined) {
+        const arr = Array.isArray(raw) ? raw : (typeof raw === "string" ? raw.split(",").map((s: string) => s.trim()) : [raw]);
+        return arr.filter(Boolean);
+      }
+      if (legacy !== undefined) return [legacy];
+      return undefined;
+    };
+    const resolvedCategoriesUpdate = parseCategories(rawCategoriesUpdate, legacyCategoryUpdate);
+
+    if (resolvedCategoriesUpdate) {
+      for (const catId of resolvedCategoriesUpdate) {
+        if (catId && !mongoose.isValidObjectId(catId)) {
+          throw new AppError(`Invalid category ID format: ${catId}`, 400);
+        }
+      }
     }
 
     const files = req.files as Express.Multer.File[] | undefined;
@@ -304,11 +356,14 @@ export const updateProduct = asyncHandler(
       productName,
       slug,
       description,
-      category,
       ageRange,
       tags,
       youtubeUrl,
+      warrantyType,
+      guaranteeTerms,
     };
+
+    if (resolvedCategoriesUpdate !== undefined) updateData.categories = resolvedCategoriesUpdate;
 
     if (featured !== undefined) updateData.featured = featured === "true" || featured === true;
     if (newArrival !== undefined) updateData.newArrival = newArrival === "true" || newArrival === true;
@@ -316,6 +371,11 @@ export const updateProduct = asyncHandler(
     if (isActive !== undefined) updateData.isActive = isActive === "true" || isActive === true;
     if (hasVariants !== undefined) updateData.hasVariants = hasVariants === "true" || hasVariants === true;
     if (stock !== undefined) updateData.stock = Number(stock) || 0;
+
+    if (hasWarranty !== undefined) updateData.hasWarranty = hasWarranty === "true" || hasWarranty === true;
+    if (warrantyPeriod !== undefined) updateData.warrantyPeriod = Number(warrantyPeriod) || 0;
+    if (hasGuarantee !== undefined) updateData.hasGuarantee = hasGuarantee === "true" || hasGuarantee === true;
+    if (guaranteePeriod !== undefined) updateData.guaranteePeriod = Number(guaranteePeriod) || 0;
 
     if (imageUrls.length > 0) {
       updateData.image = imageUrls[0];

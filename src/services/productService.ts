@@ -30,7 +30,7 @@ class ProductService {
     }
 
     if (category) {
-      filter.category = category;
+      filter.categories = { $in: [category] };
     }
 
     if (minPrice !== undefined || maxPrice !== undefined) {
@@ -54,7 +54,7 @@ class ProductService {
       query: query,
       filter: filter,
       sort: sort || { position: 1, createdAt: -1 },
-      populate: ["category", "variants"]
+      populate: ["categories", "variants"]
     });
   }
 
@@ -106,7 +106,7 @@ class ProductService {
       variantMatch.status = "active";
     }
 
-    const product = await Product.findById(id).populate("category").populate({
+    const product = await Product.findById(id).populate("categories").populate({
       path: "variants",
       match: variantMatch
     }).lean();
