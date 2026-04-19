@@ -114,7 +114,9 @@ app.use((req, res, next) => {
 
   const sanitizeValue = (value: any): any => {
     if (typeof value === "string") {
-      return value.replace(/\$/g, "_").replace(/\./g, "_");
+      // Do NOT sanitize string values — dots in emails/URLs are valid data.
+      // NoSQL injection only works through object KEYS (e.g. {"$gt": ""}).
+      return value;
     }
     if (typeof value === "object" && value !== null) {
       if (Array.isArray(value)) {
@@ -122,6 +124,7 @@ app.use((req, res, next) => {
       }
       const sanitized: any = {};
       for (const key in value) {
+        // Only sanitize $ and . in object KEYS to prevent NoSQL injection
         const sanitizedKey = key.replace(/[\$.]/g, "_");
         sanitized[sanitizedKey] = sanitizeValue(value[key]);
       }
