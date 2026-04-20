@@ -22,7 +22,7 @@ export const normalizeToE164 = (mobile: string): string => {
  * Send an SMS via Twilio.
  * Lazily reads env vars so missing config is caught at call-time, not import-time.
  */
-export const sendSMS = async (to: string, body: string): Promise<void> => {
+export const sendTwilioSMS = async (to: string, body: string): Promise<void> => {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const fromNumber = process.env.TWILIO_PHONE_NUMBER;
@@ -46,3 +46,5 @@ export const sendSMS = async (to: string, body: string): Promise<void> => {
     );
   }
 };
+
+export const sendSMS = sendTwilioSMS;

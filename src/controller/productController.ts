@@ -47,7 +47,15 @@ export const getAllProducts = asyncHandler(
 
 export const getProductFilters = asyncHandler(
   async (req: Request, res: Response) => {
+    // LOW-6 FIX: Cache the heavy facet aggregation for 5 minutes
+    const CACHE_KEY = "products:filters";
+    const cached = await CacheService.get(CACHE_KEY);
+    if (cached) {
+      return sendSuccessResponse(res, 200, "Filters fetched successfully", cached);
+    }
+
     const filters = await productService.getProductFilters();
+    await CacheService.set(CACHE_KEY, filters, 300); // 5-minute TTL
     return sendSuccessResponse(
       res,
       200,
@@ -64,7 +72,9 @@ export const getProductById = asyncHandler(
       throw new AppError("Invalid product ID format", 400);
     }
 
-    const cacheKey = `product:${id}`;
+    // MED-3 FIX: Separate cache keys for admin (sees all variants) vs public (active only)
+    const isAdmin = (req as any).user?.role === "admin";
+    const cacheKey = `product:${id}:${isAdmin ? "admin" : "public"}`;
     const cachedProduct = await CacheService.get(cacheKey);
     if (cachedProduct) {
       return sendSuccessResponse(
@@ -75,7 +85,6 @@ export const getProductById = asyncHandler(
       );
     }
 
-    const isAdmin = (req as any).user?.role === "admin";
     const product = await productService.getProductById(id, isAdmin);
     if (!product) {
       throw new AppError("Product not found", 404);
@@ -457,7 +466,9 @@ export const updateProduct = asyncHandler(
     }
 
     await CacheService.delPattern("products:page:*");
-    await CacheService.del(`product:${id}`);
+    await CacheService.del(`product:${id}:admin`);
+    await CacheService.del(`product:${id}:public`);
+    await CacheService.del("products:filters");
 
     // Re-fetch with populated variants/categories so the response
     // includes updated variant stock values for the frontend
@@ -480,7 +491,9 @@ export const deleteProduct = asyncHandler(
     }
 
     await CacheService.delPattern("products:page:*");
-    await CacheService.del(`product:${id}`);
+    await CacheService.del(`product:${id}:admin`);
+    await CacheService.del(`product:${id}:public`);
+    await CacheService.del("products:filters");
 
     return sendSuccessResponse(res, 200, "Product deleted successfully", null);
   },
@@ -489,6 +502,7 @@ export const deleteProduct = asyncHandler(
 /**
  * Reorder products (bulk position update)
  * PUT /api/products/reorder
+ * MED-5 FIX: Validate each item.id as ObjectId and item.position as non-negative integer
  */
 export const reorderProducts = asyncHandler(
   async (req: Request, res: Response) => {
@@ -498,10 +512,22 @@ export const reorderProducts = asyncHandler(
       throw new AppError("Items array is required", 400);
     }
 
+    // Validate every item before bulk write
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (!item.id || !mongoose.isValidObjectId(item.id)) {
+        throw new AppError(`Invalid product ID at index ${i}: "${item.id}"`, 400);
+      }
+      const pos = Number(item.position);
+      if (!Number.isInteger(pos) || pos < 0) {
+        throw new AppError(`position at index ${i} must be a non-negative integer`, 400);
+      }
+    }
+
     const bulkOps = items.map((item: any) => ({
       updateOne: {
         filter: { _id: item.id },
-        update: { $set: { position: item.position } },
+        update: { $set: { position: Number(item.position) } },
       },
     }));
 

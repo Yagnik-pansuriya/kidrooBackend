@@ -430,28 +430,9 @@ router.post(
   createVariant,
 );
 
-// ── Now register the generic single-product GET (after all specific sub-routes) ──
-/**
- * @swagger
- * /api/products/{id}:
- *   get:
- *     summary: Get a product by ID
- *     description: Retrieve a single product by its database ID
- *     tags:
- *       - Products
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Successfully retrieved the product
- *       404:
- *         description: Product not found
- */
-router.get("/:id", getProductById);
+// ── Variant-level routes registered BEFORE /:id ──
+// IMPORTANT: /variants/:variantId must come before /:id GET to avoid
+// Express matching "variants" as a product ID.
 
 /**
  * @swagger
@@ -570,5 +551,28 @@ router.delete(
   checkPermission("/products"),
   deleteVariant,
 );
+
+// ── Now register the generic single-product GET (after all specific sub-routes) ──
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   get:
+ *     summary: Get a product by ID
+ *     description: Retrieve a single product by its database ID
+ *     tags:
+ *       - Products
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved the product
+ *       404:
+ *         description: Product not found
+ */
+router.get("/:id", getProductById);
 
 export default router;

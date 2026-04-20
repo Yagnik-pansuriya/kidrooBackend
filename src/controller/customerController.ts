@@ -37,8 +37,15 @@ export const changePassword = asyncHandler(async (req: Request, res: Response) =
     throw new AppError("Current password and new password are required", 400);
   }
 
-  if (newPassword.length < 6) {
-    throw new AppError("New password must be at least 6 characters", 400);
+  // MED-6 FIX: Enforce consistent password policy (8 chars + complexity)
+  if (newPassword.length < 8) {
+    throw new AppError("New password must be at least 8 characters", 400);
+  }
+  if (!/[A-Z]/.test(newPassword)) {
+    throw new AppError("New password must contain at least one uppercase letter", 400);
+  }
+  if (!/[0-9]/.test(newPassword)) {
+    throw new AppError("New password must contain at least one number", 400);
   }
 
   await customerService.changePassword(customerId, currentPassword, newPassword);
@@ -115,6 +122,11 @@ export const getWishlist = asyncHandler(async (req: Request, res: Response) => {
 export const toggleWishlist = asyncHandler(async (req: Request, res: Response) => {
   const customerId = (req as any).customerId;
   const productId = req.params.productId as string;
+
+  // LOW-6 FIX: Validate productId to prevent CastError 500
+  if (!productId || !/^[a-fA-F0-9]{24}$/.test(productId)) {
+    throw new AppError("Invalid product ID", 400);
+  }
 
   const result = await customerService.toggleWishlist(customerId, productId);
 

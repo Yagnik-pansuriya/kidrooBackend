@@ -6,7 +6,6 @@ import {
   refreshAccessToken,
   changePassword,
 } from "../controller/authController";
-import { asyncHandler } from "../utils/asyncHandler";
 import { authLimiter } from "../middlewares/rateLimiter";
 import { authMiddleware } from "../middlewares/authMiddleware";
 import { validateRequest } from "../middlewares/validateRequest";

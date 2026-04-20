@@ -1,6 +1,6 @@
 import Customer from "../models/customer";
 import AppError from "../utils/appError";
-import { sendSMS } from "../utils/twilio";
+import { sendSMS } from "../utils/sms";
 import { CacheService } from "./redisCacheService";
 import {
   generateAndStoreSignupOTP,
@@ -79,7 +79,10 @@ class CustomerService {
     // Cooldown only starts after SMS is confirmed sent
     await setResendCooldown(data.mobile);
 
-    console.log(`[OTP:Signup] SMS sent to +91${data.mobile}`);
+    // LOW-2 FIX: Only log phone numbers in non-production environments
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[OTP:Signup] SMS sent to +91${data.mobile}`);
+    }
 
     return {
       message: "OTP sent to your mobile number. Please verify to complete registration.",
@@ -147,7 +150,10 @@ class CustomerService {
       `Your Kidroo verification code is: ${otp}. Valid for 5 minutes. Do not share it.`
     );
 
-    console.log(`[OTP:Resend] SMS resent to +91${mobile}`);
+    // LOW-2 FIX: Only log phone numbers in non-production environments
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[OTP:Resend] SMS resent to +91${mobile}`);
+    }
 
     return { message: "OTP resent to your mobile number." };
   }
@@ -235,7 +241,10 @@ class CustomerService {
     // Cooldown only after successful send
     await setResendCooldown(mobile);
 
-    console.log(`[OTP:ForgotPassword] SMS sent to +91${mobile}`);
+    // LOW-2 FIX: Only log phone numbers in non-production environments
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[OTP:ForgotPassword] SMS sent to +91${mobile}`);
+    }
 
     return { message: "If this number is registered, an OTP has been sent." };
   }
