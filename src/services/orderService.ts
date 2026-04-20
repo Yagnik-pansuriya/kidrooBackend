@@ -2,13 +2,21 @@ import crypto from "crypto";
 import Order from "../models/order";
 import Product from "../models/products";
 import Customer from "../models/customer";
+import ProductVariant from "../models/variants";
 import { getRazorpayInstance } from "../config/razorpay";
 import AppError from "../utils/appError";
 import SiteSettings from "../models/siteSettings";
+import { CacheService } from "./redisCacheService";
+import { redis } from "../config/redis";
 
 class OrderService {
   /**
    * Generate a human-readable order ID: KDR-YYYYMMDD-XXXXX
+   */
+  /**
+   * Generate a human-readable order ID: KDR-YYYYMMDD-XXXXX
+   * CRIT-1 FIX: Uses Redis INCR for atomic, race-condition-free sequence generation.
+   * Falls back to timestamp+random if Redis is unavailable.
    */
   async generateOrderId(): Promise<string> {
     const today = new Date();
@@ -17,16 +25,19 @@ class OrderService {
       String(today.getMonth() + 1).padStart(2, "0") +
       String(today.getDate()).padStart(2, "0");
 
-    // Count today's orders to generate a sequential number
-    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+    const redisKey = `order:seq:${dateStr}`;
 
-    const todayCount = await Order.countDocuments({
-      createdAt: { $gte: startOfDay, $lt: endOfDay },
-    });
-
-    const seq = String(todayCount + 1).padStart(5, "0");
-    return `KDR-${dateStr}-${seq}`;
+    try {
+      // Atomic increment — guaranteed unique even under concurrency
+      const seq = await redis.incr(redisKey);
+      // Expire the key at midnight so it resets daily (TTL = 26 hours for safety)
+      await redis.expire(redisKey, 26 * 60 * 60);
+      return `KDR-${dateStr}-${String(seq).padStart(5, "0")}`;
+    } catch {
+      // Fallback: timestamp + random suffix (still better than countDocuments)
+      const fallback = `${Date.now()}-${Math.floor(Math.random() * 999)}`;
+      return `KDR-${dateStr}-F${fallback.slice(-8)}`;
+    }
   }
 
   /**
@@ -37,8 +48,6 @@ class OrderService {
   ) {
     const productSnapshots: any[] = [];
     let subTotal = 0;
-
-    const ProductVariant = (await import("../models/variants")).default;
 
     for (const item of items) {
       const product = await Product.findById(item.productId);
@@ -280,31 +289,102 @@ class OrderService {
   }
 
   /**
-   * Decrement product stock after successful order
+   * Decrement product stock after successful order.
+   * HIGH-1 FIX: Uses atomic conditional findOneAndUpdate ($inc only if stock >= quantity)
+   * to eliminate the race condition between stock validation and decrement.
    */
   async decrementStock(products: any[]) {
-    for (const item of products) {
-      await Product.findByIdAndUpdate(item.productId, {
-        $inc: { stock: -item.quantity },
-      });
+    const affectedProductIds = new Set<string>();
 
-      // Also decrement variant stock if applicable
+    for (const item of products) {
       if (item.variantId) {
-        const ProductVariant = (await import("../models/variants")).default;
-        await ProductVariant.findByIdAndUpdate(item.variantId, {
-          $inc: { stock: -item.quantity },
-        });
+        // Atomic: decrement only if sufficient stock remains (prevents overselling)
+        const updated = await ProductVariant.findOneAndUpdate(
+          { _id: item.variantId, stock: { $gte: item.quantity } },
+          { $inc: { stock: -item.quantity } },
+          { new: true }
+        );
+        if (!updated) {
+          throw new AppError(
+            `Insufficient stock for "${item.productName}". The item may have sold out during checkout.`,
+            409
+          );
+        }
+        affectedProductIds.add(String(item.productId));
+        continue;
       }
+
+      // Product-level stock (no variant)
+      const updated = await Product.findOneAndUpdate(
+        { _id: item.productId, stock: { $gte: item.quantity } },
+        { $inc: { stock: -item.quantity } },
+        { new: true }
+      );
+      if (!updated) {
+        throw new AppError(
+          `Insufficient stock for "${item.productName}". The item may have sold out during checkout.`,
+          409
+        );
+      }
+
+      affectedProductIds.add(String(item.productId));
     }
+
+    for (const productId of affectedProductIds) {
+      await this.syncProductStock(productId);
+      // MED-3 FIX: Clear both admin and public cache keys (split by isAdmin context)
+      await CacheService.del(`product:${productId}:admin`);
+      await CacheService.del(`product:${productId}:public`);
+    }
+
+    await CacheService.delPattern("products:page:*");
   }
 
   /**
-   * Get all orders for a customer
+   * Keep parent product stock aligned with its variants.
+   * If a product uses variants, product.stock should mirror the total variant stock.
    */
-  async getCustomerOrders(customerId: string) {
-    return Order.find({ customerId: customerId as any })
-      .sort({ createdAt: -1 })
-      .lean();
+  async syncProductStock(productId: string) {
+    const product = await Product.findById(productId).select("hasVariants");
+    if (!product) return;
+
+    if (!product.hasVariants) return;
+
+    const stockSummary = await ProductVariant.aggregate([
+      { $match: { product: product._id } },
+      { $group: { _id: null, totalStock: { $sum: "$stock" } } },
+    ]);
+
+    const totalStock = stockSummary[0]?.totalStock ?? 0;
+
+    await Product.findByIdAndUpdate(productId, {
+      $set: { stock: totalStock },
+    });
+  }
+
+  /**
+   * Get all orders for a customer with pagination
+   * MED-2 FIX: Added page/limit to prevent full collection scan
+   */
+  async getCustomerOrders(customerId: string, page: number = 1, limit: number = 20) {
+    const skip = (page - 1) * limit;
+    const [orders, total] = await Promise.all([
+      Order.find({ customerId: customerId as any })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Order.countDocuments({ customerId: customerId as any }),
+    ]);
+    return {
+      orders,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    };
   }
 
   /**

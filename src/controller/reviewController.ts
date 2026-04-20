@@ -7,18 +7,30 @@ import mongoose from "mongoose";
 
 // GET /api/reviews/product/:productId (public — approved only)
 export const getProductReviews = asyncHandler(async (req: Request, res: Response) => {
+  // MED-8 FIX: Validate productId before DB query to avoid CastError 500
+  if (!mongoose.isValidObjectId(req.params.productId)) {
+    throw new AppError("Invalid product ID", 400);
+  }
   const reviews = await reviewService.getProductReviews(req.params.productId as string);
   return sendSuccessResponse(res, 200, "Reviews fetched", reviews);
 });
 
 // GET /api/reviews/product/:productId/stats (public)
 export const getProductStats = asyncHandler(async (req: Request, res: Response) => {
+  // MED-8 FIX: Validate productId before DB query
+  if (!mongoose.isValidObjectId(req.params.productId)) {
+    throw new AppError("Invalid product ID", 400);
+  }
   const stats = await reviewService.getProductStats(req.params.productId as string);
   return sendSuccessResponse(res, 200, "Stats fetched", stats);
 });
 
 // POST /api/reviews/product/:productId (public — rate limited + validated by route)
 export const addReview = asyncHandler(async (req: Request, res: Response) => {
+  // MED-8 FIX: Validate productId
+  if (!mongoose.isValidObjectId(req.params.productId)) {
+    throw new AppError("Invalid product ID", 400);
+  }
   const customerId = (req as any).customerId;
   const { name, rating, title, comment } = req.body;
   const userId = (req as any).userId; // May be undefined for anonymous reviews

@@ -65,8 +65,10 @@ class ProductService {
           priceRange: [
             { $group: { _id: null, min: { $min: "$price" }, max: { $max: "$price" } } }
           ],
+          // MED-1 FIX: Use $categories (array field) — old $category was a single ref and is now removed
           categories: [
-            { $group: { _id: "$category", count: { $sum: 1 } } },
+            { $unwind: "$categories" },
+            { $group: { _id: "$categories", count: { $sum: 1 } } },
             { $lookup: { from: "categories", localField: "_id", foreignField: "_id", as: "details" } },
             { $unwind: "$details" },
             { $project: { _id: 1, name: "$details.catagoryName", count: 1 } }

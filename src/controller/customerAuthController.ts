@@ -16,7 +16,7 @@ const setCustomerCookies = (
   const isProduction = process.env.NODE_ENV === "production";
 
   res.cookie("customerAccessToken", accessToken, {
-    maxAge: 15 * 60 * 1000, // 15 minutes
+    maxAge: 15 * 60 * 1000, // 15 minutes — matches JWT "15m"
     httpOnly: true,
     secure: isProduction,
     sameSite: "strict",
@@ -24,7 +24,7 @@ const setCustomerCookies = (
   });
 
   res.cookie("customerRefreshToken", refreshToken, {
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    maxAge: 7 * 24 * 60 * 60 * 1000, // LOW-5 FIX: 7 days — matches JWT "7d" expiry
     httpOnly: true,
     secure: isProduction,
     sameSite: "strict",
@@ -245,8 +245,15 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
     throw new AppError("Passwords do not match", 400);
   }
 
-  if (newPassword.length < 6) {
-    throw new AppError("Password must be at least 6 characters", 400);
+  // MED-6 FIX: Enforce stronger password policy (matches signup requirements)
+  if (newPassword.length < 8) {
+    throw new AppError("Password must be at least 8 characters", 400);
+  }
+  if (!/[A-Z]/.test(newPassword)) {
+    throw new AppError("Password must contain at least one uppercase letter", 400);
+  }
+  if (!/[0-9]/.test(newPassword)) {
+    throw new AppError("Password must contain at least one number", 400);
   }
 
   const result = await customerService.resetPassword(mobile, otp, newPassword);
