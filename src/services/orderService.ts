@@ -8,6 +8,10 @@ import AppError from "../utils/appError";
 import SiteSettings from "../models/siteSettings";
 import { CacheService } from "./redisCacheService";
 import { redis } from "../config/redis";
+import {
+  sendOrderConfirmationWhatsApp,
+  sendOrderStatusWhatsApp,
+} from "./msg91WhatsappService";
 
 class OrderService {
   /**
@@ -228,9 +232,28 @@ class OrderService {
       await this.decrementStock(productSnapshots);
 
       // Update customer order history
-      await Customer.findByIdAndUpdate(data.customerId, {
-        $push: { orderHistory: { orderId: order._id, orderDate: new Date() } },
-      });
+      const codCustomer = await Customer.findByIdAndUpdate(
+        data.customerId,
+        { $push: { orderHistory: { orderId: order._id, orderDate: new Date() } } },
+        { new: false } // return original (pre-update) is fine — we just need the name
+      );
+
+      // ── WhatsApp: order confirmation (fire-and-forget) ─────────────────
+      const codPhone = data.shippingAddress?.phone ?? codCustomer?.mobile ?? "";
+      const codName = codCustomer
+        ? `${codCustomer.firstName} ${codCustomer.lastName}`.trim()
+        : data.shippingAddress?.fullName ?? "Customer";
+      if (codPhone) {
+        sendOrderConfirmationWhatsApp(
+          codPhone,
+          codName,
+          order.orderId,
+          totalAmount,
+          "cod"
+        ).catch((e) =>
+          console.error("[WhatsApp] COD confirmation send failed:", e?.message)
+        );
+      }
 
       return { order };
     }
@@ -281,9 +304,29 @@ class OrderService {
     await this.decrementStock(order.products);
 
     // Update customer order history
-    await Customer.findByIdAndUpdate(order.customerId, {
-      $push: { orderHistory: { orderId: order._id, orderDate: new Date() } },
-    });
+    const onlineCustomer = await Customer.findByIdAndUpdate(
+      order.customerId,
+      { $push: { orderHistory: { orderId: order._id, orderDate: new Date() } } },
+      { new: false }
+    );
+
+    // ── WhatsApp: order confirmation (fire-and-forget) ─────────────────
+    const onlinePhone =
+      order.shippingAddress?.phone ?? onlineCustomer?.mobile ?? "";
+    const onlineName = onlineCustomer
+      ? `${onlineCustomer.firstName} ${onlineCustomer.lastName}`.trim()
+      : order.shippingAddress?.fullName ?? "Customer";
+    if (onlinePhone) {
+      sendOrderConfirmationWhatsApp(
+        onlinePhone,
+        onlineName,
+        order.orderId,
+        order.totalAmount,
+        "online"
+      ).catch((e) =>
+        console.error("[WhatsApp] Online confirmation send failed:", e?.message)
+      );
+    }
 
     return order;
   }
@@ -476,10 +519,38 @@ class OrderService {
     const order = await Order.findByIdAndUpdate(orderId, update, {
       new: true,
       runValidators: true,
-    }).lean();
+    })
+      .populate<{ customerId: { firstName: string; lastName: string; mobile: string } }>(
+        "customerId",
+        "firstName lastName mobile"
+      )
+      .lean();
     if (!order) {
       throw new AppError("Order not found", 404);
     }
+
+    // ── WhatsApp: order status update (fire-and-forget) ──────────────────
+    try {
+      const customer = order.customerId as any;
+      const statusPhone: string =
+        customer?.mobile ?? order.shippingAddress?.phone ?? "";
+      const statusName: string = customer
+        ? `${customer.firstName} ${customer.lastName}`.trim()
+        : order.shippingAddress?.fullName ?? "Customer";
+      if (statusPhone) {
+        sendOrderStatusWhatsApp(
+          statusPhone,
+          statusName,
+          order.orderId,
+          orderStatus
+        ).catch((e) =>
+          console.error("[WhatsApp] Status update send failed:", e?.message)
+        );
+      }
+    } catch (e: any) {
+      console.error("[WhatsApp] Status notification error:", e?.message);
+    }
+
     return order;
   }
 }
