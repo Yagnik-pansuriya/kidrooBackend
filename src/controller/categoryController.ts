@@ -281,6 +281,23 @@ export const deleteCategory = asyncHandler(
     // Delete from database
     await categoryService.deleteCategoryById(id);
 
+    // Normalize positions after delete to close gaps (0, 1, 2, 3, …)
+    const Category = (await import("../models/categories")).default;
+    const remaining = await Category.find({})
+      .select("_id")
+      .sort({ position: 1, _id: 1 })
+      .lean();
+
+    if (remaining.length > 0) {
+      const bulkOps = remaining.map((c: any, i: number) => ({
+        updateOne: {
+          filter: { _id: c._id },
+          update: { $set: { position: i } },
+        },
+      }));
+      await Category.bulkWrite(bulkOps);
+    }
+
     // clear cache
     await CacheService.del("categories");
     await CacheService.del(`category:${id}`);
@@ -307,5 +324,69 @@ export const reorderCategories = asyncHandler(
     await CacheService.del("categories");
 
     return sendSuccessResponse(res, 200, "Categories reordered successfully", categories);
+  }
+);
+
+/**
+ * Move a single category to a specific global position
+ * PUT /api/categories/move-position
+ * Body: { id: string, targetPosition: number }
+ *
+ * Uses a "fetch all → remove → insert → normalize" approach to guarantee
+ * sequential, gap-free, duplicate-free positions.
+ */
+export const moveCategoryPosition = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { id, targetPosition } = req.body;
+
+    if (!id || !mongoose.isValidObjectId(id)) {
+      throw new AppError("Valid category ID is required", 400);
+    }
+
+    const pos = Number(targetPosition);
+    if (!Number.isInteger(pos) || pos < 0) {
+      throw new AppError("targetPosition must be a non-negative integer", 400);
+    }
+
+    const Category = (await import("../models/categories")).default;
+
+    // 1. Get ALL categories sorted by current position
+    const allCategories = await Category.find({})
+      .select("_id position")
+      .sort({ position: 1, _id: 1 })
+      .lean();
+
+    // 2. Find the moving item and remove it from the array
+    const currentIdx = allCategories.findIndex(
+      (c: any) => c._id.toString() === id
+    );
+    if (currentIdx === -1) {
+      throw new AppError("Category not found", 404);
+    }
+
+    const [movingItem] = allCategories.splice(currentIdx, 1);
+
+    // 3. Clamp target position to valid range (0 to remaining length)
+    const clampedPos = Math.min(pos, allCategories.length);
+
+    // 4. Insert at the target position
+    allCategories.splice(clampedPos, 0, movingItem);
+
+    // 5. Bulk update ALL positions to 0, 1, 2, 3, …
+    const bulkOps = allCategories.map((c: any, i: number) => ({
+      updateOne: {
+        filter: { _id: c._id },
+        update: { $set: { position: i } },
+      },
+    }));
+
+    await Category.bulkWrite(bulkOps);
+
+    // Clear cache
+    await CacheService.del("categories");
+
+    // Return updated list
+    const updatedCategories = await categoryService.getAllCategories();
+    return sendSuccessResponse(res, 200, "Category moved successfully", updatedCategories);
   }
 );

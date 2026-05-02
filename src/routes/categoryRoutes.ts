@@ -6,6 +6,7 @@ import {
   getAllCategories,
   getCategoryById,
   reorderCategories,
+  moveCategoryPosition,
 } from "../controller/categoryController";
 import { upload } from "../middlewares/upload.middleware";
 import { authMiddleware, authorizationMiddleware } from "../middlewares/authMiddleware";
@@ -33,6 +34,14 @@ router.put(
   authMiddleware,
   authorizationMiddleware(["admin", "moderator"]),
   reorderCategories
+);
+
+// PUT /api/categories/move-position — move a single category across pages
+router.put(
+  "/move-position",
+  authMiddleware,
+  authorizationMiddleware(["admin", "moderator"]),
+  moveCategoryPosition
 );
 
 /**

@@ -114,6 +114,11 @@ class ProductService {
   }
 
   async createProduct(productData: IProduct) {
+    // Auto-assign position if not provided (append at end)
+    if ((productData as any).position === undefined || (productData as any).position === null) {
+      const maxPos = await Product.findOne().sort({ position: -1 }).select("position").lean();
+      (productData as any).position = (maxPos?.position ?? -1) + 1;
+    }
     const product = await Product.create(productData)
     return product
   }

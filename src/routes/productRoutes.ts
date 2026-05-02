@@ -8,6 +8,7 @@ import {
   getProductById,
   getProductFilters,
   reorderProducts,
+  moveProductPosition,
 } from "../controller/productController";
 import {
   createVariant,
@@ -110,6 +111,14 @@ router.put(
   authMiddleware,
   authorizationMiddleware(["admin", "moderator"]),
   reorderProducts
+);
+
+// PUT /api/products/move-position — move a single product across pages
+router.put(
+  "/move-position",
+  authMiddleware,
+  authorizationMiddleware(["admin", "moderator"]),
+  moveProductPosition
 );
 
 /**

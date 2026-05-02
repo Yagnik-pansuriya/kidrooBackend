@@ -494,7 +494,23 @@ export const deleteProduct = asyncHandler(
       throw new AppError("Product not found", 404);
     }
 
-    await CacheService.delPattern("products:page:*");
+    // Normalize positions after delete to close gaps (0, 1, 2, 3, …)
+    const remaining = await Product.find({})
+      .select("_id")
+      .sort({ position: 1, _id: 1 })
+      .lean();
+
+    if (remaining.length > 0) {
+      const bulkOps = remaining.map((p, i) => ({
+        updateOne: {
+          filter: { _id: p._id },
+          update: { $set: { position: i } },
+        },
+      }));
+      await Product.bulkWrite(bulkOps);
+    }
+
+    await CacheService.delPattern("products:*");
     await CacheService.del(`product:${id}:admin`);
     await CacheService.del(`product:${id}:public`);
     await CacheService.del("products:filters");
@@ -539,5 +555,63 @@ export const reorderProducts = asyncHandler(
     await CacheService.delPattern("products:*");
 
     return sendSuccessResponse(res, 200, "Products reordered successfully", null);
+  },
+);
+
+/**
+ * Move a single product to a specific global position
+ * PUT /api/products/move-position
+ * Body: { id: string, targetPosition: number }
+ *
+ * Uses a "fetch all → remove → insert → normalize" approach to guarantee
+ * sequential, gap-free, duplicate-free positions across all pages.
+ */
+export const moveProductPosition = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { id, targetPosition } = req.body;
+
+    if (!id || !mongoose.isValidObjectId(id)) {
+      throw new AppError("Valid product ID is required", 400);
+    }
+
+    const pos = Number(targetPosition);
+    if (!Number.isInteger(pos) || pos < 0) {
+      throw new AppError("targetPosition must be a non-negative integer", 400);
+    }
+
+    // 1. Get ALL products sorted by current position (only _id + position for efficiency)
+    const allProducts = await Product.find({})
+      .select("_id position")
+      .sort({ position: 1, _id: 1 })
+      .lean();
+
+    // 2. Find the moving item and remove it from the array
+    const currentIdx = allProducts.findIndex(
+      (p) => p._id.toString() === id
+    );
+    if (currentIdx === -1) {
+      throw new AppError("Product not found", 404);
+    }
+
+    const [movingItem] = allProducts.splice(currentIdx, 1);
+
+    // 3. Clamp target position to valid range (0 to remaining length)
+    const clampedPos = Math.min(pos, allProducts.length);
+
+    // 4. Insert at the target position
+    allProducts.splice(clampedPos, 0, movingItem);
+
+    // 5. Bulk update ALL positions to 0, 1, 2, 3, …
+    const bulkOps = allProducts.map((p, i) => ({
+      updateOne: {
+        filter: { _id: p._id },
+        update: { $set: { position: i } },
+      },
+    }));
+
+    await Product.bulkWrite(bulkOps);
+    await CacheService.delPattern("products:*");
+
+    return sendSuccessResponse(res, 200, "Product moved successfully", null);
   },
 );
