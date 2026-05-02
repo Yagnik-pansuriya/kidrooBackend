@@ -68,8 +68,8 @@ export const createSkill = asyncHandler(
   async (req: Request, res: Response) => {
     const { name, description } = req.body;
 
-    if (!name || !description) {
-      throw new AppError("Name and description are required", 400);
+    if (!name) {
+      throw new AppError("Name is required", 400);
     }
 
     // Handle image upload
@@ -96,11 +96,12 @@ export const createSkill = asyncHandler(
       throw new AppError("Skill image is required", 400);
     }
 
-    const skill = await skillService.createSkill({
-      name,
-      description,
-      image: imageUrl,
-    });
+    const skillData: any = { name, image: imageUrl };
+    if (description !== undefined && description !== "") {
+      skillData.description = description;
+    }
+
+    const skill = await skillService.createSkill(skillData);
 
     await CacheService.del("skills");
 

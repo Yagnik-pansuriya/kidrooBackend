@@ -13,8 +13,8 @@ class ProductService {
       featured,
       newArrival,
       bestSeller,
-      ageFrom,
-      ageTo,
+      ageRange,
+      skill,
       isActive,
       sort
     } = query;
@@ -44,10 +44,8 @@ class ProductService {
     if (bestSeller !== undefined) filter.bestSeller = bestSeller === "true" || bestSeller === true;
     if (isActive !== undefined) filter.isActive = isActive === "true" || isActive === true;
 
-    if (ageFrom !== undefined || ageTo !== undefined) {
-      if (ageFrom !== undefined) filter["ageRange.from"] = { $gte: Number(ageFrom) };
-      if (ageTo !== undefined) filter["ageRange.to"] = { $lte: Number(ageTo) };
-    }
+    if (ageRange !== undefined && ageRange !== '') filter.ageRange = ageRange;
+    if (skill !== undefined && skill !== '') filter.skills = { $in: [skill] };
 
     return await paginateQuery({
       model: Product,

@@ -16,10 +16,7 @@ export interface IProduct {
   featured?: boolean;
   newArrival?: boolean;
   bestSeller?: boolean;
-  ageRange?: {
-    from?: number;
-    to?: number;
-  };
+  ageRange?: string;
   tags: string[];
   isActive: boolean;
   youtubeUrl?: string;
@@ -107,14 +104,9 @@ const productSchema = new mongoose.Schema<IProduct>(
       default: false,
     },
     ageRange: {
-      from: {
-        type: Number,
-        required: false,
-      },
-      to: {
-        type: Number,
-        required: false,
-      },
+      type: String,
+      enum: ['0-2', '2-4', '4-6', '6-8', '8+'],
+      required: false,
     },
     tags: {
       type: [String],

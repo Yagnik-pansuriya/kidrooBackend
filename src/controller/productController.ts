@@ -160,14 +160,14 @@ export const createProduct = asyncHandler(
         try {
           return JSON.parse(field);
         } catch {
-          return field.includes(",") ? field.split(",") : field;
+          return field.includes(",") ? field.split(",").map((s: string) => s.trim()) : field;
         }
       }
       return field;
     };
 
     tags = parseField(tags);
-    ageRange = parseField(ageRange);
+    // ageRange is now a plain string enum — no parsing needed
 
     if (resolvedCategoriesCreate.length > 0) {
       for (const catId of resolvedCategoriesCreate) {
@@ -327,13 +327,17 @@ export const updateProduct = asyncHandler(
     // Parse JSON fields
     const parseField = (field: any) => {
       if (typeof field === "string") {
-        try { return JSON.parse(field); } catch { return field; }
+        try {
+          return JSON.parse(field);
+        } catch {
+          return field.includes(",") ? field.split(",").map((s: string) => s.trim()) : field;
+        }
       }
       return field;
     };
 
     tags = parseField(tags);
-    ageRange = parseField(ageRange);
+    // ageRange is now a plain string enum — no parsing needed
 
     // Normalize categories for update
     const parseCategories = (raw: any, legacy: any): string[] | undefined => {

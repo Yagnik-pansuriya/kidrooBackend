@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 export interface ISkill {
   name: string;
-  description: string;
+  description?: string;
   image: string;
   position?: number;
 }
@@ -17,7 +17,7 @@ const skillSchema = new mongoose.Schema<ISkill>(
     },
     description: {
       type: String,
-      required: true,
+      default: "",
     },
     image: {
       type: String,

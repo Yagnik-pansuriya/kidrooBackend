@@ -56,7 +56,6 @@ router.get("/:id", getSkillById);
  *             type: object
  *             required:
  *               - name
- *               - description
  *               - image
  *             properties:
  *               name:

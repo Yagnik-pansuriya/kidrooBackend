@@ -61,12 +61,10 @@ const productBodySchema = z.object({
   ageRange: z.any().optional(),
   tags: z.any().optional(),
   hasWarranty: z.preprocess(booleanPreprocess, z.boolean().optional()),
-  // LOW-3 FIX: min(1) enforced at Zod level (not only in superRefine)
-  warrantyPeriod: z.coerce.number().min(1, "Warranty period must be at least 1").optional(),
+  warrantyPeriod: z.coerce.number().min(0).optional(),
   warrantyType: z.enum(["manufacturer", "seller"]).optional(),
   hasGuarantee: z.preprocess(booleanPreprocess, z.boolean().optional()),
-  // LOW-3 FIX: min(1) enforced at Zod level
-  guaranteePeriod: z.coerce.number().min(1, "Guarantee period must be at least 1").optional(),
+  guaranteePeriod: z.coerce.number().min(0).optional(),
   guaranteeTerms: z.string().optional(),
 });
 
@@ -90,12 +88,10 @@ const updateProductBodySchema = z.object({
   ageRange: z.any().optional(),
   tags: z.any().optional(),
   hasWarranty: z.preprocess(booleanPreprocess, z.boolean().optional()),
-  // LOW-3 FIX: min(1) enforced at Zod level
-  warrantyPeriod: z.coerce.number().min(1, "Warranty period must be at least 1").optional(),
+  warrantyPeriod: z.coerce.number().min(0).optional(),
   warrantyType: z.enum(["manufacturer", "seller"]).optional(),
   hasGuarantee: z.preprocess(booleanPreprocess, z.boolean().optional()),
-  // LOW-3 FIX: min(1) enforced at Zod level
-  guaranteePeriod: z.coerce.number().min(1, "Guarantee period must be at least 1").optional(),
+  guaranteePeriod: z.coerce.number().min(0).optional(),
   guaranteeTerms: z.string().optional(),
 });
 

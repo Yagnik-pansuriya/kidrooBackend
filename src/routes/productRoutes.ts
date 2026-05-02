@@ -180,7 +180,8 @@ router.put(
  *                 example: false
  *               ageRange:
  *                 type: string
- *                 example: '{"from": 3, "to": 8}'
+ *                 enum: ['0-2', '2-4', '4-6', '6-8', '8+']
+ *                 example: '4-6'
  *               tags:
  *                 type: string
  *                 example: "wooden,car,toy"
@@ -263,7 +264,8 @@ router.post(
  *                 type: boolean
  *               ageRange:
  *                 type: string
- *                 example: '{"from": 3, "to": 8}'
+ *                 enum: ['0-2', '2-4', '4-6', '6-8', '8+']
+ *                 example: '4-6'
  *               tags:
  *                 type: string
  *                 example: "wooden,car,toy"
