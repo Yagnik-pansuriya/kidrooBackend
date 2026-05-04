@@ -15,6 +15,7 @@ import customerRoutes from "./customerRoutes";
 import skillRoutes from "./skillRoutes";
 import orderRoutes from "./orderRoutes";
 import customerOrderRoutes from "./customerOrderRoutes";
+import sitemapRoutes from "./sitemapRoutes";
 
 const router = Router();
 
@@ -34,5 +35,6 @@ router.use("/customer/orders", customerOrderRoutes);
 router.use("/customer", customerRoutes);
 router.use("/skills", skillRoutes);
 router.use("/orders", orderRoutes);
+router.use("/sitemap.xml", sitemapRoutes);
 
 export default router;

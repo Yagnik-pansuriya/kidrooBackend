@@ -26,6 +26,7 @@ class ProductService {
         { productName: { $regex: search, $options: "i" } },
         { description: { $regex: search, $options: "i" } },
         { tags: { $regex: search, $options: "i" } },
+        { seoKeywords: { $regex: search, $options: "i" } },
       ];
     }
 

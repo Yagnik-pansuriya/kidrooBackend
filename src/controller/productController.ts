@@ -130,6 +130,9 @@ export const createProduct = asyncHandler(
       guaranteePeriod,
       guaranteeTerms,
       skills: rawSkillsCreate,
+      seoKeywords: rawSeoKeywordsCreate,
+      seoTitle: rawSeoTitleCreate,
+      seoDescription: rawSeoDescriptionCreate,
     } = req.body;
 
     // Normalize: legacy single 'category' → array; new 'categories' array → use directly
@@ -167,6 +170,12 @@ export const createProduct = asyncHandler(
     };
 
     tags = parseField(tags);
+    const parsedSeoKeywords = parseField(rawSeoKeywordsCreate);
+    const resolvedSeoKeywords = Array.isArray(parsedSeoKeywords)
+      ? parsedSeoKeywords.filter(Boolean)
+      : (typeof parsedSeoKeywords === 'string' && parsedSeoKeywords.trim()
+          ? parsedSeoKeywords.split(',').map((s: string) => s.trim()).filter(Boolean)
+          : []);
     // ageRange is now a plain string enum — no parsing needed
 
     if (resolvedCategoriesCreate.length > 0) {
@@ -256,6 +265,9 @@ export const createProduct = asyncHandler(
       guaranteePeriod: guaranteePeriod ? safeNum(guaranteePeriod) : undefined,
       guaranteeTerms: guaranteeTerms,
       skills: resolvedSkillsCreate,
+      seoKeywords: resolvedSeoKeywords,
+      seoTitle: rawSeoTitleCreate || '',
+      seoDescription: rawSeoDescriptionCreate || '',
     } as any);
 
     // ── Auto-create a default variant ──────────────────────────────
@@ -322,6 +334,9 @@ export const updateProduct = asyncHandler(
       guaranteePeriod,
       guaranteeTerms,
       skills: rawSkillsUpdate,
+      seoKeywords: rawSeoKeywordsUpdate,
+      seoTitle: rawSeoTitleUpdate,
+      seoDescription: rawSeoDescriptionUpdate,
     } = req.body;
 
     // Parse JSON fields
@@ -401,6 +416,22 @@ export const updateProduct = asyncHandler(
       warrantyType,
       guaranteeTerms,
     };
+
+    // Normalize SEO fields for update
+    if (rawSeoTitleUpdate !== undefined) updateData.seoTitle = rawSeoTitleUpdate || '';
+    if (rawSeoDescriptionUpdate !== undefined) updateData.seoDescription = rawSeoDescriptionUpdate || '';
+
+    // Normalize seoKeywords for update
+    if (rawSeoKeywordsUpdate !== undefined) {
+      const parsed = parseField(rawSeoKeywordsUpdate);
+      if (Array.isArray(parsed)) {
+        updateData.seoKeywords = parsed.filter(Boolean);
+      } else if (typeof parsed === 'string' && parsed.trim()) {
+        updateData.seoKeywords = parsed.split(',').map((s: string) => s.trim()).filter(Boolean);
+      } else {
+        updateData.seoKeywords = [];
+      }
+    }
 
     if (resolvedCategoriesUpdate !== undefined) updateData.categories = resolvedCategoriesUpdate;
 

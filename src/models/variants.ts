@@ -30,6 +30,8 @@ export interface IProductVariant extends Document {
 
   youtubeUrl?: string;
 
+  seoKeywords?: string[];
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -114,6 +116,11 @@ const productVariantSchema = new Schema<IProductVariant>(
     youtubeUrl: {
       type: String,
       default: '',
+    },
+
+    seoKeywords: {
+      type: [String],
+      default: [],
     },
   },
   { timestamps: true },

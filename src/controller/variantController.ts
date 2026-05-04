@@ -54,6 +54,7 @@ export const createVariant = asyncHandler(
       status,
       isDefault,
       youtubeUrl,
+      seoKeywords: rawSeoKeywords,
     } = req.body;
 
     // FormData sends objects as JSON strings — parse them back safely
@@ -125,6 +126,13 @@ export const createVariant = asyncHandler(
       status: safeStatus,
       isDefault: isDefault === "true" || isDefault === true,
       youtubeUrl: youtubeUrl || '',
+      seoKeywords: (() => {
+        if (!rawSeoKeywords) return [];
+        const parsed = typeof rawSeoKeywords === 'string'
+          ? rawSeoKeywords.split(',').map((s: string) => s.trim()).filter(Boolean)
+          : (Array.isArray(rawSeoKeywords) ? rawSeoKeywords.filter(Boolean) : []);
+        return parsed;
+      })(),
     });
 
     await CacheService.delPattern("products:*");
@@ -155,7 +163,7 @@ export const updateVariant = asyncHandler(
       );
     }
 
-    let { stock, attributes, dimensions, ...updateData } = req.body;
+    let { stock, attributes, dimensions, seoKeywords: rawSeoKeywordsUpdate, ...updateData } = req.body;
 
     const parseField = (field: any) => {
       if (typeof field === "string") {
@@ -251,6 +259,14 @@ export const updateVariant = asyncHandler(
       attributes,
       dimensions,
     };
+
+    // Normalize seoKeywords for update
+    if (rawSeoKeywordsUpdate !== undefined) {
+      const parsed = typeof rawSeoKeywordsUpdate === 'string'
+        ? rawSeoKeywordsUpdate.split(',').map((s: string) => s.trim()).filter(Boolean)
+        : (Array.isArray(rawSeoKeywordsUpdate) ? rawSeoKeywordsUpdate.filter(Boolean) : []);
+      finalUpdateData.seoKeywords = parsed;
+    }
 
     if (stock !== undefined) {
       finalUpdateData.stock = safeNum(stock);

@@ -30,6 +30,9 @@ export interface IProduct {
   hasGuarantee?: boolean;
   guaranteePeriod?: number;
   guaranteeTerms?: string;
+  seoKeywords?: string[];
+  seoTitle?: string;
+  seoDescription?: string;
 }
 
 const productSchema = new mongoose.Schema<IProduct>(
@@ -161,6 +164,18 @@ const productSchema = new mongoose.Schema<IProduct>(
     },
     guaranteeTerms: {
       type: String,
+    },
+    seoKeywords: {
+      type: [String],
+      default: [],
+    },
+    seoTitle: {
+      type: String,
+      default: '',
+    },
+    seoDescription: {
+      type: String,
+      default: '',
     },
   },
   { timestamps: true },
