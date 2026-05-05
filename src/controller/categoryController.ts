@@ -98,6 +98,7 @@ export const createCategory = asyncHandler(
     let {
       catagoryName,
       slug,
+      description,
       count,
       icon, 
       image 
@@ -144,6 +145,7 @@ export const createCategory = asyncHandler(
     const category = await categoryService.createCategory({
       catagoryName,
       slug,
+      description: description || '',
       count: count ? Number(count) : 0,
       icon: iconUrl,
       image: imageUrl,
@@ -178,6 +180,7 @@ export const updateCategory = asyncHandler(
     let {
       catagoryName,
       slug,
+      description,
       count,
       icon, 
       image 
@@ -228,6 +231,8 @@ export const updateCategory = asyncHandler(
       catagoryName,
       slug,
     };
+
+    if (description !== undefined) updateData.description = description;
 
     if (count !== undefined) {
       const n = Number(count);

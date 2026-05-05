@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 interface ICategory extends mongoose.Document {
   catagoryName: string;
   slug?: string;
+  description?: string;
   icon?: string;
   image?: string;
   count?: number;
@@ -21,6 +22,11 @@ const categorySchema = new mongoose.Schema<ICategory>({
     unique: true,
     lowercase: true,
     trim: true,
+  },
+  description: {
+    type: String,
+    trim: true,
+    default: '',
   },
   icon: {
     type: String,
