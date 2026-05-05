@@ -5,6 +5,7 @@ import {
   deleteCategory,
   getAllCategories,
   getCategoryById,
+  getCategoryBySlug,
   reorderCategories,
   moveCategoryPosition,
 } from "../controller/categoryController";
@@ -43,6 +44,24 @@ router.put(
   authorizationMiddleware(["admin", "moderator"]),
   moveCategoryPosition
 );
+
+/**
+ * @swagger
+ * /api/categories/slug/{slug}:
+ *   get:
+ *     summary: Get a category by slug
+ *     tags: [Categories]
+ *     parameters:
+ *       - in: path
+ *         name: slug
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved category by slug
+ */
+router.get("/slug/:slug", getCategoryBySlug);
 
 /**
  * @swagger

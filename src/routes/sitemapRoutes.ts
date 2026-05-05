@@ -21,7 +21,7 @@ router.get("/", async (req: Request, res: Response) => {
 
     // Fetch all categories
     const categories = await Category.find({})
-      .select("_id updatedAt")
+      .select("_id slug updatedAt")
       .lean();
 
     // Static pages
@@ -46,13 +46,16 @@ router.get("/", async (req: Request, res: Response) => {
 `;
     }
 
-    // Add category pages
+    // Add category pages (use slug-based URLs for SEO)
     for (const cat of categories) {
       const lastmod = cat.updatedAt
         ? new Date(cat.updatedAt).toISOString().split("T")[0]
         : new Date().toISOString().split("T")[0];
+      const catUrl = (cat as any).slug
+        ? `/category/${(cat as any).slug}`
+        : `/shop?category=${cat._id}`;
       xml += `  <url>
-    <loc>${baseUrl}/shop?category=${cat._id}</loc>
+    <loc>${baseUrl}${catUrl}</loc>
     <lastmod>${lastmod}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>

@@ -59,6 +59,38 @@ export const getCategoryById = asyncHandler(
 );
 
 /**
+ * Get category by slug
+ * GET /api/categories/slug/:slug
+ */
+export const getCategoryBySlug = asyncHandler(
+  async (req: Request, res: Response) => {
+    const slug = req.params.slug as string;
+
+    if (!slug || !slug.trim()) {
+      return sendErrorResponse(res, 400, "Slug is required");
+    }
+
+    const cacheKey = `category:slug:${slug}`;
+
+    const cachedCategory = await CacheService.get(cacheKey);
+
+    if (cachedCategory) {
+      return sendSuccessResponse(res, 200, "Category fetched successfully", cachedCategory);
+    }
+
+    const category = await categoryService.getCategoryBySlug(slug);
+
+    if (!category) {
+      return sendErrorResponse(res, 404, "Category not found");
+    }
+
+    await CacheService.set(cacheKey, category);
+
+    return sendSuccessResponse(res, 200, "Category fetched successfully", category);
+  }
+);
+
+/**
  * Create a new category
  */
 export const createCategory = asyncHandler(
@@ -232,6 +264,12 @@ export const updateCategory = asyncHandler(
     // clear cache
     await CacheService.del("categories");
     await CacheService.del(`category:${id}`);
+    if (existingCategory.slug) {
+      await CacheService.del(`category:slug:${existingCategory.slug}`);
+    }
+    if (slug && slug !== existingCategory.slug) {
+      await CacheService.del(`category:slug:${slug}`);
+    }
 
     return sendSuccessResponse(res, 200, "Category updated successfully", category);
   }
@@ -301,6 +339,9 @@ export const deleteCategory = asyncHandler(
     // clear cache
     await CacheService.del("categories");
     await CacheService.del(`category:${id}`);
+    if (category.slug) {
+      await CacheService.del(`category:slug:${category.slug}`);
+    }
 
     return sendSuccessResponse(res, 200, "Category deleted successfully", null);
   }

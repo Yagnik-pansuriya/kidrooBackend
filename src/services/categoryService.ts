@@ -11,6 +11,11 @@ class CategoryService {
     return category;
   }
 
+  async getCategoryBySlug(slug: string) {
+    const category = await Category.findOne({ slug: slug.toLowerCase() }).lean();
+    return category;
+  }
+
   async createCategory(categoryData: any) {
     // Auto-assign position if not provided
     if (categoryData.position === undefined || categoryData.position === null) {
