@@ -9,6 +9,7 @@ import {
   getProductFilters,
   reorderProducts,
   moveProductPosition,
+  toggleProductStatus,
 } from "../controller/productController";
 import {
   createVariant,
@@ -119,6 +120,14 @@ router.put(
   authMiddleware,
   authorizationMiddleware(["admin", "moderator"]),
   moveProductPosition
+);
+
+// PATCH /api/products/:id/toggle-status — toggle active/inactive
+router.patch(
+  "/:id/toggle-status",
+  authMiddleware,
+  authorizationMiddleware(["admin", "moderator"]),
+  toggleProductStatus
 );
 
 /**

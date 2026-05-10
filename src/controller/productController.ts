@@ -176,7 +176,14 @@ export const createProduct = asyncHandler(
       : (typeof parsedSeoKeywords === 'string' && parsedSeoKeywords.trim()
           ? parsedSeoKeywords.split(',').map((s: string) => s.trim()).filter(Boolean)
           : []);
-    // ageRange is now a plain string enum — no parsing needed
+    // ageRange is now an array — parse from comma-separated string if needed
+    const resolvedAgeRange = (() => {
+      if (Array.isArray(ageRange)) return ageRange.filter(Boolean);
+      if (typeof ageRange === 'string' && ageRange.trim()) {
+        return ageRange.split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
+      return [];
+    })();
 
     if (resolvedCategoriesCreate.length > 0) {
       for (const catId of resolvedCategoriesCreate) {
@@ -253,7 +260,7 @@ export const createProduct = asyncHandler(
       featured: featured === "true" || featured === true,
       newArrival: newArrival === "true" || newArrival === true,
       bestSeller: bestSeller === "true" || bestSeller === true,
-      ageRange,
+      ageRange: resolvedAgeRange,
       tags,
       isActive: isActive === "true" || isActive === true,
       hasVariants: finalHasVariants,
@@ -352,7 +359,14 @@ export const updateProduct = asyncHandler(
     };
 
     tags = parseField(tags);
-    // ageRange is now a plain string enum — no parsing needed
+    // ageRange is now an array — parse from comma-separated string if needed
+    const resolvedAgeRange = (() => {
+      if (Array.isArray(ageRange)) return ageRange.filter(Boolean);
+      if (typeof ageRange === 'string' && ageRange.trim()) {
+        return ageRange.split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
+      return [];
+    })();
 
     // Normalize categories for update
     const parseCategories = (raw: any, legacy: any): string[] | undefined => {
@@ -410,7 +424,7 @@ export const updateProduct = asyncHandler(
       productName,
       slug,
       description,
-      ageRange,
+      ageRange: resolvedAgeRange,
       tags,
       youtubeUrl,
       warrantyType,
@@ -645,4 +659,38 @@ export const moveProductPosition = asyncHandler(
 
     return sendSuccessResponse(res, 200, "Product moved successfully", null);
   },
+);
+
+/**
+ * Toggle product active status
+ * PATCH /api/products/:id/toggle-status
+ */
+export const toggleProductStatus = asyncHandler(
+  async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+
+    if (!mongoose.isValidObjectId(id)) {
+      throw new AppError("Invalid product ID format", 400);
+    }
+
+    const product = await productService.getProductById(id);
+    if (!product) {
+      throw new AppError("Product not found", 404);
+    }
+
+    const updatedProduct = await productService.updateProduct(id, {
+      isActive: !product.isActive,
+    });
+
+    // Clear product caches
+    await CacheService.delPattern("products:*");
+    await CacheService.del(`product:${id}`);
+
+    return sendSuccessResponse(
+      res,
+      200,
+      `Product ${updatedProduct?.isActive ? 'activated' : 'deactivated'} successfully`,
+      updatedProduct
+    );
+  }
 );

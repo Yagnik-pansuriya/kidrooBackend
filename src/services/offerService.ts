@@ -1,8 +1,18 @@
 import Offer from "../models/offers";
 
 class OfferService {
-  async getAllOffers() {
-    const offers = await Offer.find().sort({ createdAt: -1 }).lean();
+  async getAllOffers(search?: string) {
+    const filter: any = {};
+    if (search && search.trim()) {
+      const regex = new RegExp(search.trim(), "i");
+      filter.$or = [
+        { title: regex },
+        { subtitle: regex },
+        { couponCode: regex },
+        { offerTag: regex },
+      ];
+    }
+    const offers = await Offer.find(filter).sort({ createdAt: -1 }).lean();
     return offers;
   }
 

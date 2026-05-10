@@ -18,15 +18,23 @@ import mongoose from "mongoose";
  */
 export const getAllSkills = asyncHandler(
   async (req: Request, res: Response) => {
+    const { search } = req.query;
+    const searchTerm = typeof search === "string" ? search : undefined;
     const cacheKey = "skills";
 
-    const cachedSkills = await CacheService.get(cacheKey);
-    if (cachedSkills) {
-      return sendSuccessResponse(res, 200, "Skills fetched successfully", cachedSkills);
+    // Skip cache when searching
+    if (!searchTerm) {
+      const cachedSkills = await CacheService.get(cacheKey);
+      if (cachedSkills) {
+        return sendSuccessResponse(res, 200, "Skills fetched successfully", cachedSkills);
+      }
     }
 
-    const skills = await skillService.getAllSkills();
-    await CacheService.set(cacheKey, skills);
+    const skills = await skillService.getAllSkills(searchTerm);
+
+    if (!searchTerm) {
+      await CacheService.set(cacheKey, skills);
+    }
 
     return sendSuccessResponse(res, 200, "Skills fetched successfully", skills);
   },

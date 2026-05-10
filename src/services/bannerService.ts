@@ -1,8 +1,18 @@
 import Banner from "../models/banner";
 
 class BannerService {
-  async getAllBanners() {
-    return Banner.find().sort({ order: 1, createdAt: -1 }).lean();
+  async getAllBanners(search?: string) {
+    const filter: any = {};
+    if (search && search.trim()) {
+      const regex = new RegExp(search.trim(), "i");
+      filter.$or = [
+        { title: regex },
+        { tag: regex },
+        { highlightText: regex },
+        { description: regex },
+      ];
+    }
+    return Banner.find(filter).sort({ order: 1, createdAt: -1 }).lean();
   }
 
   async getActiveBanners() {

@@ -1,8 +1,17 @@
 import Category from "../models/categories";
 
 class CategoryService {
-  async getAllCategories() {
-    const categories = await Category.find().sort({ position: 1, _id: 1 }).lean();
+  async getAllCategories(search?: string) {
+    const filter: any = {};
+    if (search && search.trim()) {
+      const regex = new RegExp(search.trim(), "i");
+      filter.$or = [
+        { catagoryName: regex },
+        { slug: regex },
+        { description: regex },
+      ];
+    }
+    const categories = await Category.find(filter).sort({ position: 1, _id: 1 }).lean();
     return categories;
   }
 

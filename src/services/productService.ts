@@ -45,7 +45,7 @@ class ProductService {
     if (bestSeller !== undefined) filter.bestSeller = bestSeller === "true" || bestSeller === true;
     if (isActive !== undefined) filter.isActive = isActive === "true" || isActive === true;
 
-    if (ageRange !== undefined && ageRange !== '') filter.ageRange = ageRange;
+    if (ageRange !== undefined && ageRange !== '') filter.ageRange = { $in: [ageRange] };
     if (skill !== undefined && skill !== '') filter.skills = { $in: [skill] };
 
     return await paginateQuery({

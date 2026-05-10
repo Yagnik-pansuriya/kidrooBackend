@@ -14,23 +14,28 @@ import mongoose from "mongoose";
  */
 export const getAllOffers = asyncHandler(
   async (req: Request, res: Response) => {
-    const { activeOnly } = req.query;
+    const { activeOnly, search } = req.query;
+    const searchTerm = typeof search === "string" ? search : undefined;
     const cacheKey = activeOnly === "true" ? "offers:active" : "offers:all";
 
-    const cachedOffers = await CacheService.get(cacheKey);
-
-    if (cachedOffers) {
-      return sendSuccessResponse(res, 200, "Offers fetched successfully", cachedOffers);
+    // Skip cache when searching
+    if (!searchTerm) {
+      const cachedOffers = await CacheService.get(cacheKey);
+      if (cachedOffers) {
+        return sendSuccessResponse(res, 200, "Offers fetched successfully", cachedOffers);
+      }
     }
 
     let offers;
     if (activeOnly === "true") {
       offers = await offerService.getActiveOffers();
     } else {
-      offers = await offerService.getAllOffers();
+      offers = await offerService.getAllOffers(searchTerm);
     }
 
-    await CacheService.set(cacheKey, offers);
+    if (!searchTerm) {
+      await CacheService.set(cacheKey, offers);
+    }
 
     return sendSuccessResponse(res, 200, "Offers fetched successfully", offers);
   }

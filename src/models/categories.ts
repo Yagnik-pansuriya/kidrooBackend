@@ -8,6 +8,7 @@ interface ICategory extends mongoose.Document {
   image?: string;
   count?: number;
   position?: number;
+  isActive?: boolean;
 }
 
 const categorySchema = new mongoose.Schema<ICategory>({
@@ -42,6 +43,10 @@ const categorySchema = new mongoose.Schema<ICategory>({
   position: {
     type: Number,
     default: 0,
+  },
+  isActive: {
+    type: Boolean,
+    default: true,
   },
 
 })

@@ -14,17 +14,23 @@ import mongoose from "mongoose";
  */
 export const getAllCategories = asyncHandler(
   async (req: Request, res: Response) => {
+    const { search } = req.query;
+    const searchTerm = typeof search === "string" ? search : undefined;
     const cacheKey = "categories";
 
-    const cachedCategories = await CacheService.get(cacheKey);
-
-    if (cachedCategories) {
-      return sendSuccessResponse(res, 200, "Categories fetched successfully", cachedCategories);
+    // Skip cache when searching
+    if (!searchTerm) {
+      const cachedCategories = await CacheService.get(cacheKey);
+      if (cachedCategories) {
+        return sendSuccessResponse(res, 200, "Categories fetched successfully", cachedCategories);
+      }
     }
 
-    const categories = await categoryService.getAllCategories();
+    const categories = await categoryService.getAllCategories(searchTerm);
 
-    await CacheService.set(cacheKey, categories);
+    if (!searchTerm) {
+      await CacheService.set(cacheKey, categories);
+    }
 
     return sendSuccessResponse(res, 200, "Categories fetched successfully", categories);
   }
@@ -101,7 +107,8 @@ export const createCategory = asyncHandler(
       description,
       count,
       icon, 
-      image 
+      image,
+      isActive
     } = req.body;
 
     let imageUrl = image;
@@ -149,6 +156,7 @@ export const createCategory = asyncHandler(
       count: count ? Number(count) : 0,
       icon: iconUrl,
       image: imageUrl,
+      isActive: isActive === 'false' || isActive === false ? false : true,
     });
 
     // clear cache
@@ -183,7 +191,8 @@ export const updateCategory = asyncHandler(
       description,
       count,
       icon, 
-      image 
+      image,
+      isActive
     } = req.body;
 
     let imageUrl = image;
@@ -245,6 +254,11 @@ export const updateCategory = asyncHandler(
     Object.keys(updateData).forEach(
       (key) => updateData[key] === undefined && delete updateData[key]
     );
+
+    // Handle isActive
+    if (isActive !== undefined) {
+      updateData.isActive = isActive === 'true' || isActive === true;
+    }
 
     const category = await categoryService.updateCategory(id, updateData);
 
@@ -434,5 +448,42 @@ export const moveCategoryPosition = asyncHandler(
     // Return updated list
     const updatedCategories = await categoryService.getAllCategories();
     return sendSuccessResponse(res, 200, "Category moved successfully", updatedCategories);
+  }
+);
+
+/**
+ * Toggle category active status
+ * PATCH /api/categories/:id/toggle-status
+ */
+export const toggleCategoryStatus = asyncHandler(
+  async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+
+    if (!mongoose.isValidObjectId(id)) {
+      throw new AppError("Invalid category ID format", 400);
+    }
+
+    const category = await categoryService.getCategoryById(id);
+    if (!category) {
+      throw new AppError("Category not found", 404);
+    }
+
+    const updatedCategory = await categoryService.updateCategory(id, {
+      isActive: !category.isActive,
+    });
+
+    // Clear caches
+    await CacheService.del("categories");
+    await CacheService.del(`category:${id}`);
+    if (category.slug) {
+      await CacheService.del(`category:slug:${category.slug}`);
+    }
+
+    return sendSuccessResponse(
+      res,
+      200,
+      `Category ${updatedCategory?.isActive ? 'activated' : 'deactivated'} successfully`,
+      updatedCategory
+    );
   }
 );

@@ -21,18 +21,24 @@ const cacheKey = (id: string) => `banner:${id}`;
  * CRIT-4: wrapped in asyncHandler. LOW-8: Redis caching added.
  */
 export const getAllBanners = asyncHandler(async (req: Request, res: Response) => {
-  const { activeOnly } = req.query;
+  const { activeOnly, search } = req.query;
+  const searchTerm = typeof search === "string" ? search : undefined;
   const key = activeOnly === "true" ? CACHE_ACTIVE : CACHE_ALL;
 
-  const cached = await CacheService.get(key);
-  if (cached) {
-    return sendSuccessResponse(res, 200, "Banners fetched successfully", cached);
+  // Skip cache when searching
+  if (!searchTerm) {
+    const cached = await CacheService.get(key);
+    if (cached) {
+      return sendSuccessResponse(res, 200, "Banners fetched successfully", cached);
+    }
   }
 
   const banners =
-    activeOnly === "true" ? await bannerService.getActiveBanners() : await bannerService.getAllBanners();
+    activeOnly === "true" ? await bannerService.getActiveBanners() : await bannerService.getAllBanners(searchTerm);
 
-  await CacheService.set(key, banners, 300);
+  if (!searchTerm) {
+    await CacheService.set(key, banners, 300);
+  }
   return sendSuccessResponse(res, 200, "Banners fetched successfully", banners);
 });
 

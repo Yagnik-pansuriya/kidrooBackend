@@ -51,7 +51,8 @@ export const addReview = asyncHandler(async (req: Request, res: Response) => {
 export const getAllReviews = asyncHandler(async (req: Request, res: Response) => {
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
   const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
-  const result = await reviewService.getAllReviews(page, limit);
+  const search = typeof req.query.search === "string" ? req.query.search : undefined;
+  const result = await reviewService.getAllReviews(page, limit, search);
   return sendSuccessResponse(res, 200, "All reviews fetched", result);
 });
 

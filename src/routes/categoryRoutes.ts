@@ -8,6 +8,7 @@ import {
   getCategoryBySlug,
   reorderCategories,
   moveCategoryPosition,
+  toggleCategoryStatus,
 } from "../controller/categoryController";
 import { upload } from "../middlewares/upload.middleware";
 import { authMiddleware, authorizationMiddleware } from "../middlewares/authMiddleware";
@@ -62,6 +63,14 @@ router.put(
  *         description: Successfully retrieved category by slug
  */
 router.get("/slug/:slug", getCategoryBySlug);
+
+// PATCH /api/categories/:id/toggle-status — toggle active/inactive
+router.patch(
+  "/:id/toggle-status",
+  authMiddleware,
+  authorizationMiddleware(["admin", "moderator"]),
+  toggleCategoryStatus
+);
 
 /**
  * @swagger

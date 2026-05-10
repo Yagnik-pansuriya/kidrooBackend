@@ -1,8 +1,16 @@
 import Skill from "../models/skill";
 
 class SkillService {
-  async getAllSkills() {
-    const skills = await Skill.find().sort({ position: 1, _id: 1 }).lean();
+  async getAllSkills(search?: string) {
+    const filter: any = {};
+    if (search && search.trim()) {
+      const regex = new RegExp(search.trim(), "i");
+      filter.$or = [
+        { name: regex },
+        { description: regex },
+      ];
+    }
+    const skills = await Skill.find(filter).sort({ position: 1, _id: 1 }).lean();
     return skills;
   }
 

@@ -67,17 +67,35 @@ class ReviewService {
 
   // Get all reviews (admin — across all products, paginated)
   // MED-5: Pagination prevents OOM on large review datasets
-  async getAllReviews(page = 1, limit = 20) {
+  async getAllReviews(page = 1, limit = 20, search?: string) {
     const skip = (page - 1) * limit;
+    const filter: any = {};
+
+    if (search && search.trim()) {
+      const regex = new RegExp(search.trim(), "i");
+      // Find products whose name matches the search term
+      const matchingProducts = await Product.find({ productName: regex }).select("_id").lean();
+      const productIds = matchingProducts.map((p: any) => p._id);
+
+      filter.$or = [
+        { name: regex },
+        { title: regex },
+        { comment: regex },
+      ];
+      if (productIds.length > 0) {
+        filter.$or.push({ product: { $in: productIds } });
+      }
+    }
+
     const [reviews, total] = await Promise.all([
-      Review.find()
+      Review.find(filter)
         .populate("user", "name email")
         .populate("product", "productName slug")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
-      Review.countDocuments(),
+      Review.countDocuments(filter),
     ]);
     return { reviews, total, page, limit, pages: Math.ceil(total / limit) };
   }
