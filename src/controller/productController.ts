@@ -99,7 +99,7 @@ export const getProductById = asyncHandler(
 );
 
 /**
- * Get related products (same SKU)
+ * Get related products (same product code)
  * GET /api/products/:id/related
  */
 export const getRelatedProducts = asyncHandler(
@@ -114,8 +114,8 @@ export const getRelatedProducts = asyncHandler(
       throw new AppError("Product not found", 404);
     }
 
-    const related = await productService.getProductsBySku(
-      (product as any).sku,
+    const related = await productService.getProductsByProductCode(
+      (product as any).productCode,
       id
     );
 
@@ -136,7 +136,8 @@ export const createProduct = asyncHandler(
     let {
       productName,
       slug,
-      sku,
+      productCode: rawProductCode,
+      sku: legacySku, // backward compat with cached frontend
       description,
       price,
       originalPrice,
@@ -265,10 +266,13 @@ export const createProduct = asyncHandler(
       throw new AppError("At least one image is required", 400);
     }
 
+    // Resolve productCode (fallback to legacy sku field from cached frontend)
+    const productCode = rawProductCode || legacySku || "";
+
     const product = await productService.createProduct({
       productName,
       slug,
-      sku: String(sku || "").trim().toUpperCase(),
+      productCode: String(productCode).trim().toUpperCase(),
       description,
       price: parsedPrice,
       originalPrice: parsedOriginalPrice,
@@ -325,7 +329,8 @@ export const updateProduct = asyncHandler(
     let {
       productName,
       slug,
-      sku,
+      productCode: rawProductCodeUpdate,
+      sku: legacySkuUpdate, // backward compat with cached frontend
       description,
       price,
       originalPrice,
@@ -436,8 +441,9 @@ export const updateProduct = asyncHandler(
       guaranteeTerms,
     };
 
-    // SKU update
-    if (sku !== undefined) updateData.sku = String(sku).trim().toUpperCase();
+    // Resolve productCode (fallback to legacy sku field from cached frontend)
+    const productCode = rawProductCodeUpdate ?? legacySkuUpdate;
+    if (productCode !== undefined) updateData.productCode = String(productCode).trim().toUpperCase();
 
     // Normalize SEO fields for update
     if (rawSeoTitleUpdate !== undefined) updateData.seoTitle = rawSeoTitleUpdate || '';

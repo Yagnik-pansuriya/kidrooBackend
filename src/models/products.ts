@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 export interface IProduct {
   productName: string;
   slug: string;
-  sku: string;
+  productCode: string;
   description: string;
   price: number;
   originalPrice: number;
@@ -45,7 +45,7 @@ const productSchema = new mongoose.Schema<IProduct>(
       required: true,
       unique: true,
     },
-    sku: {
+    productCode: {
       type: String,
       required: true,
       trim: true,

@@ -26,7 +26,7 @@ class ProductService {
         { description: { $regex: search, $options: "i" } },
         { tags: { $regex: search, $options: "i" } },
         { seoKeywords: { $regex: search, $options: "i" } },
-        { sku: { $regex: search, $options: "i" } },
+        { productCode: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -107,10 +107,10 @@ class ProductService {
   }
 
   /**
-   * Get products sharing the same SKU (related/grouped products)
+   * Get products sharing the same product code (related/grouped products)
    */
-  async getProductsBySku(sku: string, excludeId?: string) {
-    const filter: any = { sku, isActive: true };
+  async getProductsByProductCode(productCode: string, excludeId?: string) {
+    const filter: any = { productCode, isActive: true };
     if (excludeId) filter._id = { $ne: excludeId };
     return await Product.find(filter)
       .populate("categories")
