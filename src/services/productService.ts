@@ -1,6 +1,5 @@
 import Product, { IProduct } from "../models/products";
 import { paginateQuery } from "../utils/common/paginateQuarry";
-import { variantService } from "./variantService";
 import { deleteFromCloudinary, extractPublicId } from "../utils/uploadToCloudinary";
 
 class ProductService {
@@ -27,6 +26,7 @@ class ProductService {
         { description: { $regex: search, $options: "i" } },
         { tags: { $regex: search, $options: "i" } },
         { seoKeywords: { $regex: search, $options: "i" } },
+        { sku: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -53,7 +53,7 @@ class ProductService {
       query: query,
       filter: filter,
       sort: sort || { position: 1, createdAt: -1 },
-      populate: ["categories", "variants", "skills"]
+      populate: ["categories", "skills"]
     });
   }
 
@@ -102,16 +102,21 @@ class ProductService {
   }
 
   async getProductById(id: string, isAdmin: boolean = false) {
-    const variantMatch: any = {};
-    if (!isAdmin) {
-      variantMatch.status = "active";
-    }
-
-    const product = await Product.findById(id).populate("categories").populate("skills").populate({
-      path: "variants",
-      match: variantMatch
-    }).lean();
+    const product = await Product.findById(id).populate("categories").populate("skills").lean();
     return product;
+  }
+
+  /**
+   * Get products sharing the same SKU (related/grouped products)
+   */
+  async getProductsBySku(sku: string, excludeId?: string) {
+    const filter: any = { sku, isActive: true };
+    if (excludeId) filter._id = { $ne: excludeId };
+    return await Product.find(filter)
+      .populate("categories")
+      .populate("skills")
+      .sort({ position: 1 })
+      .lean();
   }
 
   async createProduct(productData: IProduct) {
@@ -152,9 +157,6 @@ class ProductService {
         console.error(`Failed to delete Cloudinary image: ${product.image}`, err);
       }
     }
-
-    // Delete all variants and their images
-    await variantService.deleteVariantsByProductId(id);
 
     // Delete product document
     return await Product.findByIdAndDelete(id);

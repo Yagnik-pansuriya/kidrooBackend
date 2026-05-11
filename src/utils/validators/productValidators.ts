@@ -41,6 +41,7 @@ const addWarrantyGuaranteeValidation = (
 const productBodySchema = z.object({
   productName: z.string().min(1, "Product name is required"),
   slug: z.string().optional(),
+  sku: z.string().min(1, "SKU is required"),
   description: z.string().optional(),
   price: z.coerce.number().min(0, "Price must be positive"),
   originalPrice: z.coerce.number().min(0).optional(),
@@ -56,7 +57,6 @@ const productBodySchema = z.object({
   newArrival: z.preprocess(booleanPreprocess, z.boolean().optional()),
   bestSeller: z.preprocess(booleanPreprocess, z.boolean().optional()),
   isActive: z.preprocess(booleanPreprocess, z.boolean().optional()),
-  hasVariants: z.preprocess(booleanPreprocess, z.boolean().optional()),
   youtubeUrl: z.string().optional(),
   ageRange: z.any().optional(),
   tags: z.any().optional(),
@@ -71,6 +71,7 @@ const productBodySchema = z.object({
 const updateProductBodySchema = z.object({
   productName: z.string().min(1, "Product name is required").optional(),
   slug: z.string().optional(),
+  sku: z.string().min(1).optional(),
   description: z.string().optional(),
   price: z.coerce.number().min(0, "Price must be positive").optional(),
   originalPrice: z.coerce.number().min(0).optional(),
@@ -83,7 +84,6 @@ const updateProductBodySchema = z.object({
   newArrival: z.preprocess(booleanPreprocess, z.boolean().optional()),
   bestSeller: z.preprocess(booleanPreprocess, z.boolean().optional()),
   isActive: z.preprocess(booleanPreprocess, z.boolean().optional()),
-  hasVariants: z.preprocess(booleanPreprocess, z.boolean().optional()),
   youtubeUrl: z.string().optional(),
   ageRange: z.any().optional(),
   tags: z.any().optional(),

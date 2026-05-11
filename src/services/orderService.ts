@@ -2,7 +2,6 @@ import crypto from "crypto";
 import Order from "../models/order";
 import Product from "../models/products";
 import Customer from "../models/customer";
-import ProductVariant from "../models/variants";
 import { getRazorpayInstance } from "../config/razorpay";
 import AppError from "../utils/appError";
 import SiteSettings from "../models/siteSettings";
@@ -62,6 +61,14 @@ class OrderService {
         throw new AppError(`Product "${product.productName}" is no longer available`, 400);
       }
 
+      // Check product-level stock
+      if (product.stock < item.quantity) {
+        throw new AppError(
+          `Insufficient stock for "${product.productName}". Available: ${product.stock}, Requested: ${item.quantity}`,
+          400
+        );
+      }
+
       // Build the snapshot
       const snapshot: any = {
         productId: product._id,
@@ -71,46 +78,6 @@ class OrderService {
         price: product.price,
         originalPrice: product.originalPrice,
       };
-
-      // Resolve the variant — either the one explicitly specified, or the default variant
-      let resolvedVariant: any = null;
-
-      if (item.variantId) {
-        resolvedVariant = await ProductVariant.findById(item.variantId);
-      } else {
-        // No variantId sent — look up the default variant for this product
-        resolvedVariant = await ProductVariant.findOne({
-          product: product._id,
-          isDefault: true,
-        });
-      }
-
-      if (resolvedVariant) {
-        const v = resolvedVariant;
-        snapshot.variantId = v._id;
-        // Build variant name from attributes (e.g. "Red / Small")
-        const attrs = v.attributes || {};
-        snapshot.variantName = Object.values(attrs).join(" / ") || v.sku || "";
-        snapshot.price = v.price;
-        snapshot.originalPrice = v.originalPrice || product.originalPrice;
-        snapshot.productImage = v.images?.[0] || product.image;
-
-        // Check variant stock
-        if (v.stock < item.quantity) {
-          throw new AppError(
-            `Insufficient stock for "${product.productName}". Available: ${v.stock}, Requested: ${item.quantity}`,
-            400
-          );
-        }
-      } else {
-        // No variant found at all — fall back to product-level stock
-        if (product.stock < item.quantity) {
-          throw new AppError(
-            `Insufficient stock for "${product.productName}". Available: ${product.stock}, Requested: ${item.quantity}`,
-            400
-          );
-        }
-      }
 
       subTotal += snapshot.price * snapshot.quantity;
       productSnapshots.push(snapshot);
@@ -340,24 +307,7 @@ class OrderService {
     const affectedProductIds = new Set<string>();
 
     for (const item of products) {
-      if (item.variantId) {
-        // Atomic: decrement only if sufficient stock remains (prevents overselling)
-        const updated = await ProductVariant.findOneAndUpdate(
-          { _id: item.variantId, stock: { $gte: item.quantity } },
-          { $inc: { stock: -item.quantity } },
-          { new: true }
-        );
-        if (!updated) {
-          throw new AppError(
-            `Insufficient stock for "${item.productName}". The item may have sold out during checkout.`,
-            409
-          );
-        }
-        affectedProductIds.add(String(item.productId));
-        continue;
-      }
-
-      // Product-level stock (no variant)
+      // All stock deductions now go directly to the Product model
       const updated = await Product.findOneAndUpdate(
         { _id: item.productId, stock: { $gte: item.quantity } },
         { $inc: { stock: -item.quantity } },
@@ -374,35 +324,13 @@ class OrderService {
     }
 
     for (const productId of affectedProductIds) {
-      await this.syncProductStock(productId);
-      // MED-3 FIX: Clear both admin and public cache keys (split by isAdmin context)
+      // Clear cache for affected products
       await CacheService.del(`product:${productId}:admin`);
       await CacheService.del(`product:${productId}:public`);
+      await CacheService.del(`product:${productId}`);
     }
 
     await CacheService.delPattern("products:page:*");
-  }
-
-  /**
-   * Keep parent product stock aligned with its variants.
-   * If a product uses variants, product.stock should mirror the total variant stock.
-   */
-  async syncProductStock(productId: string) {
-    const product = await Product.findById(productId).select("hasVariants");
-    if (!product) return;
-
-    if (!product.hasVariants) return;
-
-    const stockSummary = await ProductVariant.aggregate([
-      { $match: { product: product._id } },
-      { $group: { _id: null, totalStock: { $sum: "$stock" } } },
-    ]);
-
-    const totalStock = stockSummary[0]?.totalStock ?? 0;
-
-    await Product.findByIdAndUpdate(productId, {
-      $set: { stock: totalStock },
-    });
   }
 
   /**

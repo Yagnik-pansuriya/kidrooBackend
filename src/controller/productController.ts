@@ -10,7 +10,6 @@ import fs from "fs";
 import { CacheService } from "../services/redisCacheService";
 import { sendSuccessResponse } from "../utils/apiResponse";
 import { productService } from "../services/productService";
-import { variantService } from "../services/variantService";
 import mongoose from "mongoose";
 import Product from "../models/products";
 
@@ -72,9 +71,7 @@ export const getProductById = asyncHandler(
       throw new AppError("Invalid product ID format", 400);
     }
 
-    // MED-3 FIX: Separate cache keys for admin (sees all variants) vs public (active only)
-    const isAdmin = (req as any).user?.role === "admin";
-    const cacheKey = `product:${id}:${isAdmin ? "admin" : "public"}`;
+    const cacheKey = `product:${id}`;
     const cachedProduct = await CacheService.get(cacheKey);
     if (cachedProduct) {
       return sendSuccessResponse(
@@ -85,7 +82,7 @@ export const getProductById = asyncHandler(
       );
     }
 
-    const product = await productService.getProductById(id, isAdmin);
+    const product = await productService.getProductById(id);
     if (!product) {
       throw new AppError("Product not found", 404);
     }
@@ -102,6 +99,36 @@ export const getProductById = asyncHandler(
 );
 
 /**
+ * Get related products (same SKU)
+ * GET /api/products/:id/related
+ */
+export const getRelatedProducts = asyncHandler(
+  async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    if (!mongoose.isValidObjectId(id)) {
+      throw new AppError("Invalid product ID format", 400);
+    }
+
+    const product = await productService.getProductById(id);
+    if (!product) {
+      throw new AppError("Product not found", 404);
+    }
+
+    const related = await productService.getProductsBySku(
+      (product as any).sku,
+      id
+    );
+
+    return sendSuccessResponse(
+      res,
+      200,
+      "Related products fetched successfully",
+      related,
+    );
+  },
+);
+
+/**
  * Create a new product
  */
 export const createProduct = asyncHandler(
@@ -109,6 +136,7 @@ export const createProduct = asyncHandler(
     let {
       productName,
       slug,
+      sku,
       description,
       price,
       originalPrice,
@@ -121,7 +149,6 @@ export const createProduct = asyncHandler(
       ageRange,
       tags,
       isActive,
-      hasVariants,
       youtubeUrl,
       hasWarranty,
       warrantyPeriod,
@@ -208,19 +235,13 @@ export const createProduct = asyncHandler(
 
     const parsedPrice = safeNum(price);
     const parsedOriginalPrice = originalPrice ? safeNum(originalPrice) : parsedPrice;
-    let parsedStock = safeNum(stock);
-    
-    // Check final hasVariants
-    const finalHasVariants = hasVariants === undefined ? true : (hasVariants === "true" || hasVariants === true);
+    const parsedStock = safeNum(stock);
 
     // Discount calculate
     const discountPercentage =
       parsedOriginalPrice > 0 && parsedOriginalPrice > parsedPrice
         ? Math.round(((parsedOriginalPrice - parsedPrice) / parsedOriginalPrice) * 100)
         : 0;
-
-    // Stock rule: if hasVariants, stock is handled by variants
-    if (finalHasVariants) parsedStock = 0;
 
     // Handle image uploads
     const files = req.files as Express.Multer.File[];
@@ -247,6 +268,7 @@ export const createProduct = asyncHandler(
     const product = await productService.createProduct({
       productName,
       slug,
+      sku: String(sku || "").trim().toUpperCase(),
       description,
       price: parsedPrice,
       originalPrice: parsedOriginalPrice,
@@ -263,7 +285,6 @@ export const createProduct = asyncHandler(
       ageRange: resolvedAgeRange,
       tags,
       isActive: isActive === "true" || isActive === true,
-      hasVariants: finalHasVariants,
       youtubeUrl: youtubeUrl || '',
       hasWarranty: hasWarranty === "true" || hasWarranty === true,
       warrantyPeriod: warrantyPeriod ? safeNum(warrantyPeriod) : undefined,
@@ -277,24 +298,9 @@ export const createProduct = asyncHandler(
       seoDescription: rawSeoDescriptionCreate || '',
     } as any);
 
-    // ── Auto-create a default variant ──────────────────────────────
-    const autoSku = `${(slug || productName || "PROD").toUpperCase().replace(/[^A-Z0-9]/g, "-").slice(0, 20)}-DEFAULT`;
-    await variantService.createVariant({
-      product: product._id as any,
-      sku: autoSku,
-      attributes: new Map([["Type", "Default"]]) as any,
-      price: parsedPrice,
-      originalPrice: parsedOriginalPrice,
-      stock: safeNum(stock), // Variant gets the actual stock amount
-      images: imageUrls,
-      status: "active",
-      isDefault: true,
-      youtubeUrl: youtubeUrl || '',
-    });
-
     await CacheService.delPattern("products:page:*");
 
-    // Re-fetch with variants populated so the response includes the auto-created variant
+    // Re-fetch with populated categories/skills
     const populatedProduct = await productService.getProductById(
       (product._id as any).toString(),
       true
@@ -311,8 +317,7 @@ export const updateProduct = asyncHandler(
       throw new AppError("Invalid product ID format", 400);
     }
 
-    const isAdmin = (req as any).user?.role === "admin";
-    const existingProduct = await productService.getProductById(id, isAdmin);
+    const existingProduct = await productService.getProductById(id);
     if (!existingProduct) {
       throw new AppError("Product not found", 404);
     }
@@ -320,6 +325,7 @@ export const updateProduct = asyncHandler(
     let {
       productName,
       slug,
+      sku,
       description,
       price,
       originalPrice,
@@ -332,7 +338,6 @@ export const updateProduct = asyncHandler(
       ageRange,
       tags,
       isActive,
-      hasVariants,
       youtubeUrl,
       hasWarranty,
       warrantyPeriod,
@@ -431,6 +436,9 @@ export const updateProduct = asyncHandler(
       guaranteeTerms,
     };
 
+    // SKU update
+    if (sku !== undefined) updateData.sku = String(sku).trim().toUpperCase();
+
     // Normalize SEO fields for update
     if (rawSeoTitleUpdate !== undefined) updateData.seoTitle = rawSeoTitleUpdate || '';
     if (rawSeoDescriptionUpdate !== undefined) updateData.seoDescription = rawSeoDescriptionUpdate || '';
@@ -459,7 +467,6 @@ export const updateProduct = asyncHandler(
     if (newArrival !== undefined) updateData.newArrival = newArrival === "true" || newArrival === true;
     if (bestSeller !== undefined) updateData.bestSeller = bestSeller === "true" || bestSeller === true;
     if (isActive !== undefined) updateData.isActive = isActive === "true" || isActive === true;
-    if (hasVariants !== undefined) updateData.hasVariants = hasVariants === "true" || hasVariants === true;
     if (stock !== undefined) updateData.stock = safeNum(stock);
 
     if (hasWarranty !== undefined) updateData.hasWarranty = hasWarranty === "true" || hasWarranty === true;
@@ -481,46 +488,18 @@ export const updateProduct = asyncHandler(
       updateData.discountPercentage = op > 0 && op > p ? Math.round(((op - p) / op) * 100) : 0;
     }
 
-    // Enforce variants rule
-    const finalHasVariants = hasVariants !== undefined ? updateData.hasVariants : existingProduct.hasVariants;
-    if (finalHasVariants) updateData.stock = 0;
-
     // Clean up undefined fields so they don't overwrite existing values in MongoDB
     Object.keys(updateData).forEach((key) => {
       if (updateData[key] === undefined) delete updateData[key];
     });
 
-    // CRITICAL: Never overwrite the variants array during product update.
-    // Variants are managed exclusively by variant CRUD endpoints and syncDefaultVariant.
-    delete updateData.variants;
-
     const product = await productService.updateProduct(id, updateData);
 
-    // Sync default variant with parent product data
-    // Default variants are fully dependent on the product — they cannot be edited independently
-    if (finalHasVariants) {
-      const variantSyncData: any = {};
-      if (price !== undefined) variantSyncData.price = safeNum(price);
-      if (originalPrice !== undefined) variantSyncData.originalPrice = safeNum(originalPrice);
-      if (stock !== undefined) variantSyncData.stock = safeNum(stock);
-      if (imageUrls.length > 0) variantSyncData.images = imageUrls;
-      if (youtubeUrl !== undefined) variantSyncData.youtubeUrl = youtubeUrl;
-      if (isActive !== undefined) {
-        variantSyncData.status = (isActive === "true" || isActive === true) ? "active" : "inactive";
-      }
-
-      if (Object.keys(variantSyncData).length > 0) {
-        await variantService.syncDefaultVariant(id, variantSyncData);
-      }
-    }
-
     await CacheService.delPattern("products:page:*");
-    await CacheService.del(`product:${id}:admin`);
-    await CacheService.del(`product:${id}:public`);
+    await CacheService.del(`product:${id}`);
     await CacheService.del("products:filters");
 
-    // Re-fetch with populated variants/categories so the response
-    // includes updated variant stock values for the frontend
+    // Re-fetch with populated categories/skills
     const populatedProduct = await productService.getProductById(id, true);
 
     return sendSuccessResponse(res, 200, "Product updated successfully", populatedProduct);
@@ -556,8 +535,7 @@ export const deleteProduct = asyncHandler(
     }
 
     await CacheService.delPattern("products:*");
-    await CacheService.del(`product:${id}:admin`);
-    await CacheService.del(`product:${id}:public`);
+    await CacheService.del(`product:${id}`);
     await CacheService.del("products:filters");
 
     return sendSuccessResponse(res, 200, "Product deleted successfully", null);

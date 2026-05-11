@@ -10,15 +10,9 @@ import {
   reorderProducts,
   moveProductPosition,
   toggleProductStatus,
+  getRelatedProducts,
 } from "../controller/productController";
-import {
-  createVariant,
-  updateVariant,
-  getVariantsByProduct,
-  deleteVariant,
-} from "../controller/variantController";
-import { uploadMultiple, uploadSingle } from "../middlewares/upload.middleware";
-import { asyncHandler } from "../utils/asyncHandler";
+import { uploadMultiple } from "../middlewares/upload.middleware";
 import {
   authMiddleware,
   authorizationMiddleware,
@@ -59,7 +53,7 @@ router.get("/filters", getProductFilters);
  *         name: search
  *         schema:
  *           type: string
- *         description: Search by name, description, or tags
+ *         description: Search by name, description, tags, or SKU
  *       - in: query
  *         name: category
  *         schema:
@@ -135,7 +129,7 @@ router.patch(
  * /api/products:
  *   post:
  *     summary: Create a new product with images
- *     description: Create a product with multiple image uploads
+ *     description: Create a product with multiple image uploads and an SKU code
  *     tags:
  *       - Products
  *     requestBody:
@@ -147,15 +141,11 @@ router.patch(
  *             required:
  *               - productName
  *               - slug
+ *               - sku
  *               - description
  *               - price
  *               - originalPrice
  *               - stock
- *               - category
- *               - featured
- *               - newArrival
- *               - bestSeller
- *               - ageRange
  *               - tags
  *               - isActive
  *               - images
@@ -166,6 +156,10 @@ router.patch(
  *               slug:
  *                 type: string
  *                 example: "wooden-toy-car"
+ *               sku:
+ *                 type: string
+ *                 description: "SKU code. Products with the same SKU are grouped as related items."
+ *                 example: "KIDROO-TOY-12345"
  *               description:
  *                 type: string
  *                 example: "High-quality wooden toy car"
@@ -178,24 +172,9 @@ router.patch(
  *               stock:
  *                 type: number
  *                 example: 100
- *               category:
+ *               categories:
  *                 type: string
  *                 example: "60dfssdf0f8sfsklfdfss"
- *               ratings:
- *                 type: number
- *                 example: 4.5
- *               numReviews:
- *                 type: number
- *                 example: 120
- *               featured:
- *                 type: boolean
- *                 example: true
- *               newArrival:
- *                 type: boolean
- *                 example: true
- *               bestSeller:
- *                 type: boolean
- *                 example: false
  *               ageRange:
  *                 type: string
  *                 enum: ['0-2', '2-4', '4-6', '6-8', '8+']
@@ -206,14 +185,6 @@ router.patch(
  *               isActive:
  *                 type: boolean
  *                 example: true
- *               hasVariants:
- *                 type: boolean
- *                 example: false
- *               variants:
- *                 type: array
- *                 items:
- *                   type: string
- *                 example: []
  *               images:
  *                 type: array
  *                 items:
@@ -264,6 +235,9 @@ router.post(
  *                 type: string
  *               slug:
  *                 type: string
+ *               sku:
+ *                 type: string
+ *                 description: "SKU code. Products with the same SKU are grouped as related items."
  *               description:
  *                 type: string
  *               price:
@@ -272,14 +246,8 @@ router.post(
  *                 type: number
  *               stock:
  *                 type: number
- *               category:
+ *               categories:
  *                 type: string
- *               featured:
- *                 type: boolean
- *               newArrival:
- *                 type: boolean
- *               bestSeller:
- *                 type: boolean
  *               ageRange:
  *                 type: string
  *                 enum: ['0-2', '2-4', '4-6', '6-8', '8+']
@@ -289,12 +257,6 @@ router.post(
  *                 example: "wooden,car,toy"
  *               isActive:
  *                 type: boolean
- *               hasVariants:
- *                 type: boolean
- *               variants:
- *                 type: array
- *                 items:
- *                   type: string
  *               images:
  *                 type: array
  *                 items:
@@ -347,230 +309,27 @@ router.delete(
   deleteProduct,
 );
 
-// --- Product Variants Routes --- //
-// IMPORTANT: These MUST be registered before /:id to prevent Express from
-// matching "variants" as a product id parameter.
-
 /**
  * @swagger
- * /api/products/{productId}/variants:
+ * /api/products/{id}/related:
  *   get:
- *     summary: Get all variants for a product
+ *     summary: Get related products (same SKU)
+ *     description: Returns products sharing the same SKU code, excluding the current product
  *     tags:
- *       - Variants
- */
-router.get("/:productId/variants", getVariantsByProduct);
-
-/**
- * @swagger
- * /api/products/{productId}/variants:
- *   post:
- *     summary: Create a new variant for a toy
- *     description: Add a new variant (e.g., a "Collector's Edition" or "Red Color") to a base toy product. Allows uploading multiple images. (Admin only)
- *     tags:
- *       - Variants
+ *       - Products
  *     parameters:
  *       - in: path
- *         name: productId
+ *         name: id
  *         required: true
- *         schema:
- *           type: string
- *         description: The ID of the base Toy Product
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             required:
- *               - sku
- *               - attributes
- *               - price
- *             properties:
- *               sku:
- *                 type: string
- *                 example: "TOY-CAR-RED-001"
- *               barcode:
- *                 type: string
- *                 example: "1234567890123"
- *               attributes:
- *                 type: string
- *                 description: Flexible attributes for the toy variant properly stringified (Color, Size, Material, etc.)
- *                 example: '{"Color": "Red", "Edition": "Collector''s Edition", "Material": "Wood"}'
- *               price:
- *                 type: number
- *                 example: 34.99
- *               originalPrice:
- *                 type: number
- *                 example: 39.99
- *               stock:
- *                 type: number
- *                 example: 50
- *               lowStockAlert:
- *                 type: number
- *                 example: 5
- *               images:
- *                 type: array
- *                 items:
- *                   type: string
- *                   format: binary
- *                 description: "Upload up to 5 images for this variant highlighting details"
- *               weight:
- *                 type: number
- *                 description: Weight in grams or kg
- *                 example: 500
- *               dimensions:
- *                 type: string
- *                 description: Dimensions (JSON stringified)
- *                 example: '{"length": 15, "width": 10, "height": 5}'
- *               status:
- *                 type: string
- *                 enum:
- *                   - active
- *                   - inactive
- *                   - out_of_stock
- *                 example: "active"
- *               isDefault:
- *                 type: boolean
- *                 example: false
- *     responses:
- *       201:
- *         description: Variant created successfully
- *       400:
- *         description: Invalid input or SKU already exists
- *       404:
- *         description: Base product not found
- */
-router.post(
-  "/:productId/variants",
-  authMiddleware,
-  authorizationMiddleware(["admin", "moderator"]),
-  checkPermission("/products"),
-  uploadMultiple("images", 5),
-  createVariant,
-);
-
-// ── Variant-level routes registered BEFORE /:id ──
-// IMPORTANT: /variants/:variantId must come before /:id GET to avoid
-// Express matching "variants" as a product ID.
-
-/**
- * @swagger
- * /api/products/variants/{variantId}:
- *   put:
- *     summary: Update an existing toy variant
- *     description: Modify details of a specific toy variant. Supports image replacement via multipart/form-data. (Admin only)
- *     tags:
- *       - Variants
- *     parameters:
- *       - in: path
- *         name: variantId
- *         required: true
- *         schema:
- *           type: string
- *         description: The ID of the Variant to update
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             properties:
- *               sku:
- *                 type: string
- *                 example: "TOY-CAR-RED-002"
- *               barcode:
- *                 type: string
- *                 example: "1234567890123"
- *               attributes:
- *                 type: string
- *                 description: Flexible attributes (JSON stringified)
- *                 example: '{"Color": "Crimson Red"}'
- *               price:
- *                 type: number
- *                 example: 29.99
- *               originalPrice:
- *                 type: number
- *                 example: 39.99
- *               stock:
- *                 type: number
- *                 example: 50
- *               lowStockAlert:
- *                 type: number
- *                 example: 10
- *               images:
- *                 type: array
- *                 items:
- *                   type: string
- *                   format: binary
- *                 description: "Upload new images to replace existing ones (Up to 5)"
- *               weight:
- *                 type: number
- *                 example: 500
- *               dimensions:
- *                 type: string
- *                 description: Dimensions (JSON stringified)
- *                 example: '{"length": 20, "width": 10, "height": 10}'
- *               status:
- *                 type: string
- *                 enum:
- *                   - active
- *                   - inactive
- *                   - out_of_stock
- *                 example: "active"
- *               isDefault:
- *                 type: boolean
- *                 example: false
- *               isActive:
- *                 type: boolean
- *                 example: true
- *     responses:
- *       200:
- *         description: Variant updated successfully
- *       400:
- *         description: Invalid Variant ID format
- *       404:
- *         description: Variant not found
- */
-router.put(
-  "/variants/:variantId",
-  authMiddleware,
-  authorizationMiddleware(["admin", "moderator"]),
-  checkPermission("/products"),
-  uploadMultiple("images", 5),
-  updateVariant,
-);
-
-/**
- * @swagger
- * /api/products/variants/{variantId}:
- *   delete:
- *     summary: Delete a variant
- *     description: Delete a specific variant by its ID
- *     tags:
- *       - Variants
- *     parameters:
- *       - in: path
- *         name: variantId
- *         required: true
- *         description: The ID of the variant to delete
  *         schema:
  *           type: string
  *     responses:
  *       200:
- *         description: Variant deleted successfully
- *       400:
- *         description: Invalid Variant ID format
+ *         description: Related products fetched successfully
  *       404:
- *         description: Variant not found
+ *         description: Product not found
  */
-router.delete(
-  "/variants/:variantId",
-  authMiddleware,
-  authorizationMiddleware(["admin", "moderator"]),
-  checkPermission("/products"),
-  deleteVariant,
-);
+router.get("/:id/related", getRelatedProducts);
 
 // ── Now register the generic single-product GET (after all specific sub-routes) ──
 /**

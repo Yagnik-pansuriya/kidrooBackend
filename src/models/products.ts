@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 export interface IProduct {
   productName: string;
   slug: string;
+  sku: string;
   description: string;
   price: number;
   originalPrice: number;
@@ -20,9 +21,7 @@ export interface IProduct {
   tags: string[];
   isActive: boolean;
   youtubeUrl?: string;
-  hasVariants?: boolean;
   position?: number;
-  variants?: mongoose.Schema.Types.ObjectId[];
   skills?: mongoose.Schema.Types.ObjectId[];
   hasWarranty?: boolean;
   warrantyPeriod?: number;
@@ -45,6 +44,13 @@ const productSchema = new mongoose.Schema<IProduct>(
       type: String,
       required: true,
       unique: true,
+    },
+    sku: {
+      type: String,
+      required: true,
+      trim: true,
+      uppercase: true,
+      index: true,
     },
     description: {
       type: String,
@@ -123,17 +129,7 @@ const productSchema = new mongoose.Schema<IProduct>(
       type: String,
       default: '',
     },
-    hasVariants: {
-      type: Boolean,
-      required: true,
-      default: false,
-    },
-    variants: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "ProductVariant",
-      },
-    ],
+
     position: {
       type: Number,
       default: 0,
