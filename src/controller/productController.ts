@@ -67,9 +67,6 @@ export const getProductFilters = asyncHandler(
 export const getProductById = asyncHandler(
   async (req: Request, res: Response) => {
     const id = req.params.id as string;
-    if (!mongoose.isValidObjectId(id)) {
-      throw new AppError("Invalid product ID format", 400);
-    }
 
     const cacheKey = `product:${id}`;
     const cachedProduct = await CacheService.get(cacheKey);
@@ -105,9 +102,6 @@ export const getProductById = asyncHandler(
 export const getRelatedProducts = asyncHandler(
   async (req: Request, res: Response) => {
     const id = req.params.id as string;
-    if (!mongoose.isValidObjectId(id)) {
-      throw new AppError("Invalid product ID format", 400);
-    }
 
     const product = await productService.getProductById(id);
     if (!product) {
@@ -151,6 +145,8 @@ export const createProduct = asyncHandler(
       tags,
       isActive,
       youtubeUrl,
+      youtubeUrl2,
+      skuCode,
       hasWarranty,
       warrantyPeriod,
       warrantyType,
@@ -161,6 +157,7 @@ export const createProduct = asyncHandler(
       seoKeywords: rawSeoKeywordsCreate,
       seoTitle: rawSeoTitleCreate,
       seoDescription: rawSeoDescriptionCreate,
+      specifications: rawSpecificationsCreate,
     } = req.body;
 
     // Normalize: legacy single 'category' → array; new 'categories' array → use directly
@@ -290,6 +287,8 @@ export const createProduct = asyncHandler(
       tags,
       isActive: isActive === "true" || isActive === true,
       youtubeUrl: youtubeUrl || '',
+      youtubeUrl2: youtubeUrl2 || '',
+      skuCode: skuCode || '',
       hasWarranty: hasWarranty === "true" || hasWarranty === true,
       warrantyPeriod: warrantyPeriod ? safeNum(warrantyPeriod) : undefined,
       warrantyType: warrantyType,
@@ -300,6 +299,13 @@ export const createProduct = asyncHandler(
       seoKeywords: resolvedSeoKeywords,
       seoTitle: rawSeoTitleCreate || '',
       seoDescription: rawSeoDescriptionCreate || '',
+      specifications: (() => {
+        if (!rawSpecificationsCreate) return [];
+        if (typeof rawSpecificationsCreate === 'string') {
+          try { return JSON.parse(rawSpecificationsCreate); } catch { return []; }
+        }
+        return Array.isArray(rawSpecificationsCreate) ? rawSpecificationsCreate : [];
+      })(),
     } as any);
 
     await CacheService.delPattern("products:page:*");
@@ -354,6 +360,9 @@ export const updateProduct = asyncHandler(
       seoKeywords: rawSeoKeywordsUpdate,
       seoTitle: rawSeoTitleUpdate,
       seoDescription: rawSeoDescriptionUpdate,
+      specifications: rawSpecificationsUpdate,
+      youtubeUrl2,
+      skuCode,
     } = req.body;
 
     // Parse JSON fields
@@ -437,8 +446,10 @@ export const updateProduct = asyncHandler(
       ageRange: resolvedAgeRange,
       tags,
       youtubeUrl,
+      youtubeUrl2,
       warrantyType,
       guaranteeTerms,
+      skuCode,
     };
 
     // Resolve productCode (fallback to legacy sku field from cached frontend)
@@ -467,6 +478,17 @@ export const updateProduct = asyncHandler(
     if (rawSkillsUpdate !== undefined) {
       const arr = Array.isArray(rawSkillsUpdate) ? rawSkillsUpdate : (typeof rawSkillsUpdate === "string" ? rawSkillsUpdate.split(",").map((s: string) => s.trim()) : [rawSkillsUpdate]);
       updateData.skills = arr.filter(Boolean);
+    }
+
+    // Normalize specifications for update
+    if (rawSpecificationsUpdate !== undefined) {
+      if (typeof rawSpecificationsUpdate === 'string') {
+        try { updateData.specifications = JSON.parse(rawSpecificationsUpdate); } catch { updateData.specifications = []; }
+      } else if (Array.isArray(rawSpecificationsUpdate)) {
+        updateData.specifications = rawSpecificationsUpdate;
+      } else {
+        updateData.specifications = [];
+      }
     }
 
     if (featured !== undefined) updateData.featured = featured === "true" || featured === true;
