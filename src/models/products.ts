@@ -21,7 +21,9 @@ export interface IProduct {
   tags: string[];
   isActive: boolean;
   youtubeUrl?: string;
+  youtubeUrl2?: string;
   position?: number;
+  skuCode?: string;
   skills?: mongoose.Schema.Types.ObjectId[];
   hasWarranty?: boolean;
   warrantyPeriod?: number;
@@ -32,6 +34,7 @@ export interface IProduct {
   seoKeywords?: string[];
   seoTitle?: string;
   seoDescription?: string;
+  specifications?: { key: string; value: string }[];
 }
 
 const productSchema = new mongoose.Schema<IProduct>(
@@ -129,10 +132,19 @@ const productSchema = new mongoose.Schema<IProduct>(
       type: String,
       default: '',
     },
+    youtubeUrl2: {
+      type: String,
+      default: '',
+    },
 
     position: {
       type: Number,
       default: 0,
+    },
+    skuCode: {
+      type: String,
+      default: '',
+      trim: true,
     },
     skills: [
       {
@@ -172,6 +184,10 @@ const productSchema = new mongoose.Schema<IProduct>(
     seoDescription: {
       type: String,
       default: '',
+    },
+    specifications: {
+      type: [{ key: String, value: String }],
+      default: [],
     },
   },
   { timestamps: true },

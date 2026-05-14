@@ -1,6 +1,8 @@
 import Product, { IProduct } from "../models/products";
 import { paginateQuery } from "../utils/common/paginateQuarry";
 import { deleteFromCloudinary, extractPublicId } from "../utils/uploadToCloudinary";
+import mongoose from "mongoose";
+
 
 class ProductService {
   async getAllProducts(query: any = {}) {
@@ -101,8 +103,12 @@ class ProductService {
     };
   }
 
-  async getProductById(id: string, isAdmin: boolean = false) {
-    const product = await Product.findById(id).populate("categories").populate("skills").lean();
+  async getProductById(idOrSlug: string, isAdmin: boolean = false) {
+    const filter = mongoose.Types.ObjectId.isValid(idOrSlug)
+      ? { $or: [{ _id: idOrSlug }, { slug: idOrSlug }] }
+      : { slug: idOrSlug };
+
+    const product = await Product.findOne(filter).populate("categories").populate("skills").lean();
     return product;
   }
 
