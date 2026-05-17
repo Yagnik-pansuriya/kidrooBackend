@@ -7,6 +7,7 @@ import { CacheService } from "../services/redisCacheService";
 import { sendErrorResponse, sendSuccessResponse } from "../utils/apiResponse";
 import { categoryService } from "../services/categoryService";
 import mongoose from "mongoose";
+import { slugify } from "../utils/slugify";
 
 /**
  * Get All Categories
@@ -111,6 +112,9 @@ export const createCategory = asyncHandler(
       isActive
     } = req.body;
 
+    // Auto-generate slug from category name if not provided, and always sanitize
+    slug = slugify(slug || catagoryName || "");
+
     let imageUrl = image;
     let iconUrl = icon;
 
@@ -194,6 +198,9 @@ export const updateCategory = asyncHandler(
       image,
       isActive
     } = req.body;
+
+    // Always sanitize slug; auto-generate from name if empty
+    slug = slugify(slug || catagoryName || "");
 
     let imageUrl = image;
     let iconUrl = icon;
