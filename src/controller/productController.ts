@@ -12,6 +12,7 @@ import { sendSuccessResponse } from "../utils/apiResponse";
 import { productService } from "../services/productService";
 import mongoose from "mongoose";
 import Product from "../models/products";
+import { slugify } from "../utils/slugify";
 
 /**
  * Get All Products
@@ -217,6 +218,9 @@ export const createProduct = asyncHandler(
         }
       }
     }
+
+    // Always sanitize slug; auto-generate from product name if empty
+    slug = slugify(slug || productName || "");
 
     // Slug unique check
     const existingSlug = await Product.findOne({ slug });
@@ -438,6 +442,11 @@ export const updateProduct = asyncHandler(
       const n = Number(v);
       return isNaN(n) ? 0 : n;
     };
+
+    // Always sanitize slug on update; auto-generate from product name if empty
+    if (slug !== undefined) {
+      slug = slugify(slug || productName || (existingProduct as any).productName || "");
+    }
 
     const updateData: any = {
       productName,
