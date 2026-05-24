@@ -14,7 +14,7 @@ import mongoose from "mongoose";
  */
 export const createOrder = asyncHandler(async (req: Request, res: Response) => {
   const customerId = (req as any).customerId;
-  const { items, paymentMethod, shippingAddress } = req.body;
+  const { items, paymentMethod, shippingAddress, couponCode } = req.body;
 
   // Validate required fields
   if (!items || !Array.isArray(items) || items.length === 0) {
@@ -48,6 +48,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
     items,
     paymentMethod,
     shippingAddress,
+    couponCode,
   });
 
   if (paymentMethod === "online") {

@@ -11,6 +11,7 @@ import {
   sendOrderConfirmationWhatsApp,
   sendOrderStatusWhatsApp,
 } from "./msg91WhatsappService";
+import { couponService } from "./couponService";
 
 class OrderService {
   /**
@@ -133,6 +134,7 @@ class OrderService {
     items: Array<{ productId: string; variantId?: string; quantity: number }>;
     paymentMethod: "online" | "cod";
     shippingAddress: any;
+    couponCode?: string;
   }) {
     // 1. Check if payment method is allowed
     const settings = await SiteSettings.findOne();
@@ -144,13 +146,35 @@ class OrderService {
     }
 
     // 2. Validate products, stock, and calculate totals from DB
-    const { productSnapshots, subTotal, tax, shippingCost, discount, totalAmount } =
-      await this.validateAndCalculate(data.items);
+    const calcResult = await this.validateAndCalculate(data.items);
+    let { productSnapshots, subTotal, tax, shippingCost, discount, totalAmount } = calcResult;
 
-    // 3. Generate order ID
+    // 3. Apply coupon if provided
+    let appliedCouponId: string | null = null;
+    if (data.couponCode) {
+      const cartItemsForValidation = productSnapshots.map((snap: any) => ({
+        productId: snap.productId.toString(),
+        quantity: snap.quantity,
+        price: snap.price,
+      }));
+      const couponResult = await couponService.validateCoupon(
+        data.couponCode,
+        data.customerId,
+        cartItemsForValidation
+      );
+      if (couponResult.valid) {
+        discount = couponResult.discount;
+        totalAmount = subTotal + tax + shippingCost - discount;
+        appliedCouponId = couponResult.couponId?.toString() || null;
+      } else {
+        throw new AppError(couponResult.message, 400);
+      }
+    }
+
+    // 4. Generate order ID
     const orderId = await this.generateOrderId();
 
-    // 4. Handle based on payment method
+    // 5. Handle based on payment method
     if (data.paymentMethod === "online") {
       // Create Razorpay order first
       const razorpayOrder = await this.createRazorpayOrder(totalAmount, orderId);
@@ -171,6 +195,11 @@ class OrderService {
         razorpayOrderId: razorpayOrder.id,
         shippingAddress: data.shippingAddress,
       });
+
+      // Mark coupon as used for online orders (after order created, before payment)
+      if (appliedCouponId) {
+        await couponService.applyCoupon(appliedCouponId, data.customerId);
+      }
 
       return {
         order,
@@ -197,6 +226,11 @@ class OrderService {
 
       // Decrement stock for COD orders
       await this.decrementStock(productSnapshots);
+
+      // Mark coupon as used for COD orders
+      if (appliedCouponId) {
+        await couponService.applyCoupon(appliedCouponId, data.customerId);
+      }
 
       // Update customer order history
       const codCustomer = await Customer.findByIdAndUpdate(
