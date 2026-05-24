@@ -4,56 +4,98 @@ import AppError from "../utils/appError";
 import { uploadToCloudinary, deleteFromCloudinary, extractPublicId } from "../utils/uploadToCloudinary";
 import fs from "fs";
 import { CacheService } from "../services/redisCacheService";
-import { sendErrorResponse, sendSuccessResponse } from "../utils/apiResponse";
+import { sendSuccessResponse } from "../utils/apiResponse";
 import { offerService } from "../services/offerService";
 import mongoose from "mongoose";
 
 /**
- * Get All Offers
+ * Get All Offers (Admin)
  * GET /api/offers
  */
 export const getAllOffers = asyncHandler(
   async (req: Request, res: Response) => {
-    const { activeOnly, search } = req.query;
+    const { search } = req.query;
     const searchTerm = typeof search === "string" ? search : undefined;
-    const cacheKey = activeOnly === "true" ? "offers:active" : "offers:all";
 
-    // Skip cache when searching
     if (!searchTerm) {
-      const cachedOffers = await CacheService.get(cacheKey);
-      if (cachedOffers) {
-        return sendSuccessResponse(res, 200, "Offers fetched successfully", cachedOffers);
+      const cached = await CacheService.get("offers:all");
+      if (cached) {
+        return sendSuccessResponse(res, 200, "Offers fetched successfully", cached);
       }
     }
 
-    let offers;
-    if (activeOnly === "true") {
-      offers = await offerService.getActiveOffers();
-    } else {
-      offers = await offerService.getAllOffers(searchTerm);
-    }
+    const offers = await offerService.getAllOffers(searchTerm);
 
     if (!searchTerm) {
-      await CacheService.set(cacheKey, offers);
+      await CacheService.set("offers:all", offers);
     }
 
     return sendSuccessResponse(res, 200, "Offers fetched successfully", offers);
   }
 );
 
+/**
+ * Get Offers by Page (Public / User-facing)
+ * GET /api/offers/page/:page
+ */
+export const getOffersByPage = asyncHandler(
+  async (req: Request, res: Response) => {
+    const page = req.params.page as string;
+    const section = req.query.section as string | undefined;
+    const allowedPages = ["home", "shop", "product", "offers", "custom"];
+
+    if (!allowedPages.includes(page)) {
+      throw new AppError(`Invalid page. Must be one of: ${allowedPages.join(", ")}`, 400);
+    }
+
+    const cacheKey = `offers:page:${page}${section ? `:${section}` : ""}`;
+    const cached = await CacheService.get(cacheKey);
+    if (cached) {
+      return sendSuccessResponse(res, 200, "Offers fetched successfully", cached);
+    }
+
+    const offers = await offerService.getOffersByPage(page, section);
+    await CacheService.set(cacheKey, offers, 300); // 5 min cache
+
+    return sendSuccessResponse(res, 200, "Offers fetched successfully", offers);
+  }
+);
+
+/**
+ * Get ALL active offers (Public — for /offers page)
+ * GET /api/offers/active
+ */
+export const getActiveOffers = asyncHandler(
+  async (req: Request, res: Response) => {
+    const cacheKey = "offers:active:all";
+    const cached = await CacheService.get(cacheKey);
+    if (cached) {
+      return sendSuccessResponse(res, 200, "Active offers fetched successfully", cached);
+    }
+
+    const offers = await offerService.getActiveOffers();
+    await CacheService.set(cacheKey, offers, 300);
+
+    return sendSuccessResponse(res, 200, "Active offers fetched successfully", offers);
+  }
+);
+
+/**
+ * Get Offer by ID (Admin)
+ * GET /api/offers/:id
+ */
 export const getOfferById = asyncHandler(
   async (req: Request, res: Response) => {
     const id = req.params.id as string;
-    
+
     if (!mongoose.isValidObjectId(id)) {
       throw new AppError("Invalid offer ID format", 400);
     }
 
     const cacheKey = `offer:${id}`;
-    const cachedOffer = await CacheService.get(cacheKey);
-
-    if (cachedOffer) {
-      return sendSuccessResponse(res, 200, "Offer fetched successfully", cachedOffer);
+    const cached = await CacheService.get(cacheKey);
+    if (cached) {
+      return sendSuccessResponse(res, 200, "Offer fetched successfully", cached);
     }
 
     const offer = await offerService.getOfferById(id);
@@ -68,7 +110,8 @@ export const getOfferById = asyncHandler(
 );
 
 /**
- * Create a new offer
+ * Create a new offer with images
+ * POST /api/offers
  */
 export const createOffer = asyncHandler(
   async (req: Request, res: Response) => {
@@ -76,66 +119,75 @@ export const createOffer = asyncHandler(
       title,
       subtitle,
       description,
-      discountPercentage,
+      displayType,
+      placement,
+      styling,
+      targetUrl,
       validity,
       isActive,
-      type,
-      targetUrl,
-      couponCode,
-      bgColor,
-      textColor,
-      offerTag,
-      offerCategory,
-      isFeatured,
-      couponDescription
     } = req.body;
 
-    // Type validation
-    const allowedTypes = ["slider", "fullscreen-poster", "post", "buyable"];
-    if (!type || !allowedTypes.includes(type)) {
-      throw new AppError(`type must be one of: ${allowedTypes.join(", ")}`, 400);
+    if (!title) throw new AppError("title is required", 400);
+
+    const allowedTypes = ["single-banner", "slider", "top-banner", "promo-section"];
+    if (!displayType || !allowedTypes.includes(displayType)) {
+      throw new AppError(`displayType must be one of: ${allowedTypes.join(", ")}`, 400);
     }
 
-    if (!title) {
-        throw new AppError("title is required", 400);
+    // Parse JSON strings from FormData
+    if (typeof placement === "string") {
+      try { placement = JSON.parse(placement); } catch { throw new AppError("Invalid placement format", 400); }
     }
-
-    // Parse validity if it's sent as a stringified JSON
+    if (typeof styling === "string") {
+      try { styling = JSON.parse(styling); } catch { throw new AppError("Invalid styling format", 400); }
+    }
     if (typeof validity === "string") {
-      try { validity = JSON.parse(validity); } catch { throw new AppError("Invalid validity format, must be valid JSON", 400); }
+      try { validity = JSON.parse(validity); } catch { throw new AppError("Invalid validity format", 400); }
     }
 
+    if (!placement || !placement.page) {
+      throw new AppError("placement.page is required", 400);
+    }
     if (!validity || !validity.from || !validity.to) {
-        throw new AppError("validity.from and validity.to are required", 400);
+      throw new AppError("validity.from and validity.to are required", 400);
     }
 
-    let imageUrls: string[] = [];
-
-    // Get files from multer middleware
+    // Upload images
+    let imageEntries: { url: string; altText: string; link: string }[] = [];
     const files = req.files as Express.Multer.File[] | undefined;
 
     if (files && files.length > 0) {
-      if (type !== "slider" && files.length > 1) {
-        files.forEach(f => { if(fs.existsSync(f.path)) fs.unlinkSync(f.path); });
-        throw new AppError("Only 1 image is allowed for this offer type", 400);
+      if (displayType !== "slider" && files.length > 1) {
+        files.forEach((f) => { if (fs.existsSync(f.path)) fs.unlinkSync(f.path); });
+        throw new AppError("Only 1 image allowed for this display type", 400);
       }
 
-      for (const file of files) {
+      // Parse per-image metadata if provided
+      let imageAltTexts: string[] = [];
+      let imageLinks: string[] = [];
+      try {
+        if (req.body.imageAltTexts) imageAltTexts = JSON.parse(req.body.imageAltTexts);
+        if (req.body.imageLinks) imageLinks = JSON.parse(req.body.imageLinks);
+      } catch { /* ignore parse errors for metadata */ }
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
         try {
           const result = await uploadToCloudinary(file.path, {
             folder: "kidroo/offers",
-            public_id: `offer-${Date.now()}`,
+            public_id: `offer-${Date.now()}-${i}`,
             resource_type: "image",
             quality: "auto",
           });
-
-          imageUrls.push(result.url);
-
+          imageEntries.push({
+            url: result.url,
+            altText: imageAltTexts[i] || "",
+            link: imageLinks[i] || "",
+          });
           if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-        } catch (uploadError: any) {
-          console.error(`[ERROR] Failed to upload image ${file.originalname}:`, uploadError.message);
+        } catch (err: any) {
           if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-          throw new AppError(`Failed to upload image: ${uploadError.message}`, 500);
+          throw new AppError(`Failed to upload image: ${err.message}`, 500);
         }
       }
     }
@@ -144,51 +196,42 @@ export const createOffer = asyncHandler(
       title,
       subtitle,
       description,
-      discountPercentage: discountPercentage !== undefined ? (isNaN(Number(discountPercentage)) ? 0 : Number(discountPercentage)) : undefined,
+      displayType,
+      placement: {
+        page: placement.page,
+        section: placement.section || "main",
+        position: placement.position !== undefined ? Number(placement.position) : 0,
+      },
+      images: imageEntries,
+      styling: styling || {},
+      targetUrl,
       validity,
       isActive: isActive !== undefined ? isActive === "true" || isActive === true : true,
-      type,
-      targetUrl,
-      couponCode,
-      bgColor,
-      textColor,
-      offerTag,
-      offerCategory: offerCategory || "all-deals",
-      isFeatured: isFeatured === "true" || isFeatured === true,
-      couponDescription,
-      image: imageUrls.length > 0 ? imageUrls : undefined,
     });
 
     await CacheService.del("offers:all");
-    await CacheService.del("offers:active");
+    await CacheService.delPattern("offers:page:*");
 
-    return sendSuccessResponse(
-      res,
-      201,
-      "Offer created successfully",
-      offer
-    );
+    return sendSuccessResponse(res, 201, "Offer created successfully", offer);
   }
 );
 
 /**
- * Update offer with optional new images
+ * Update offer
+ * PUT /api/offers/:id
  */
 export const updateOffer = asyncHandler(
   async (req: Request, res: Response) => {
     const id = req.params.id as string;
-    
+
     if (!mongoose.isValidObjectId(id)) {
       throw new AppError("Invalid offer ID format", 400);
     }
 
-    // Fetch existing offer to cleanup old images if replacing
     const existingOffer = await offerService.getOfferById(id);
     if (!existingOffer) {
       const files = req.files as Express.Multer.File[] | undefined;
-      if (files && files.length > 0) {
-        files.forEach(f => { if(fs.existsSync(f.path)) fs.unlinkSync(f.path); });
-      }
+      if (files) files.forEach((f) => { if (fs.existsSync(f.path)) fs.unlinkSync(f.path); });
       throw new AppError("Offer not found", 404);
     }
 
@@ -196,142 +239,142 @@ export const updateOffer = asyncHandler(
       title,
       subtitle,
       description,
-      discountPercentage,
+      displayType,
+      placement,
+      styling,
+      targetUrl,
       validity,
       isActive,
-      type,
-      targetUrl,
-      couponCode,
-      bgColor,
-      textColor,
-      offerTag,
-      offerCategory,
-      isFeatured,
-      couponDescription
     } = req.body;
 
-    const allowedTypes = ["slider", "fullscreen-poster", "post", "buyable"];
-    if (type && !allowedTypes.includes(type)) {
-      throw new AppError(`type must be one of: ${allowedTypes.join(", ")}`, 400);
+    // Parse JSON strings
+    if (typeof placement === "string") {
+      try { placement = JSON.parse(placement); } catch { throw new AppError("Invalid placement format", 400); }
     }
-
+    if (typeof styling === "string") {
+      try { styling = JSON.parse(styling); } catch { throw new AppError("Invalid styling format", 400); }
+    }
     if (typeof validity === "string") {
-      try { validity = JSON.parse(validity); } catch { throw new AppError("Invalid validity format, must be JSON", 400); }
+      try { validity = JSON.parse(validity); } catch { throw new AppError("Invalid validity format", 400); }
     }
 
-    let imageUrls: string[] = [];
+    // Upload new images if provided
+    let imageEntries: { url: string; altText: string; link: string }[] | undefined;
     const files = req.files as Express.Multer.File[] | undefined;
-    let hasNewImages = false;
 
     if (files && files.length > 0) {
-      const currentType = type || existingOffer.type;
+      const currentType = displayType || existingOffer.displayType;
       if (currentType !== "slider" && files.length > 1) {
-        files.forEach(f => { if(fs.existsSync(f.path)) fs.unlinkSync(f.path); });
-        throw new AppError("Only 1 image is allowed for this offer type", 400);
+        files.forEach((f) => { if (fs.existsSync(f.path)) fs.unlinkSync(f.path); });
+        throw new AppError("Only 1 image allowed for this display type", 400);
       }
 
-      hasNewImages = true;
-      for (const file of files) {
+      let imageAltTexts: string[] = [];
+      let imageLinks: string[] = [];
+      try {
+        if (req.body.imageAltTexts) imageAltTexts = JSON.parse(req.body.imageAltTexts);
+        if (req.body.imageLinks) imageLinks = JSON.parse(req.body.imageLinks);
+      } catch { /* ignore */ }
+
+      imageEntries = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
         try {
           const result = await uploadToCloudinary(file.path, {
             folder: "kidroo/offers",
-            public_id: `offer-${Date.now()}`,
+            public_id: `offer-${Date.now()}-${i}`,
             resource_type: "image",
             quality: "auto",
           });
-          imageUrls.push(result.url);
+          imageEntries.push({
+            url: result.url,
+            altText: imageAltTexts[i] || "",
+            link: imageLinks[i] || "",
+          });
           if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-        } catch (error: any) {
+        } catch (err: any) {
           if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-          throw new AppError(`Failed to upload replacement image: ${error.message}`, 500);
+          throw new AppError(`Failed to upload image: ${err.message}`, 500);
         }
       }
     }
 
-    const updateData: any = {
-      title,
-      subtitle,
-      description,
-      validity,
-      type,
-      targetUrl,
-      couponCode,
-      bgColor,
-      textColor,
-      offerTag,
-      offerCategory,
-      couponDescription,
-    };
-
-    if (discountPercentage !== undefined) {
-      const n = Number(discountPercentage);
-      updateData.discountPercentage = isNaN(n) ? 0 : n;
-    }
-
-    if (isFeatured !== undefined) {
-      updateData.isFeatured = isFeatured === "true" || isFeatured === true;
-    }
-
-    if (isActive !== undefined) {
-      updateData.isActive = isActive === "true" || isActive === true;
-    }
-
-    if (imageUrls.length > 0) {
-      updateData.image = imageUrls;
-    }
-
-    Object.keys(updateData).forEach(
-      (key) => updateData[key] === undefined && delete updateData[key]
-    );
+    const updateData: any = {};
+    if (title !== undefined) updateData.title = title;
+    if (subtitle !== undefined) updateData.subtitle = subtitle;
+    if (description !== undefined) updateData.description = description;
+    if (displayType !== undefined) updateData.displayType = displayType;
+    if (placement) updateData.placement = placement;
+    if (styling) updateData.styling = styling;
+    if (targetUrl !== undefined) updateData.targetUrl = targetUrl;
+    if (validity) updateData.validity = validity;
+    if (isActive !== undefined) updateData.isActive = isActive === "true" || isActive === true;
+    if (imageEntries) updateData.images = imageEntries;
 
     const offer = await offerService.updateOffer(id, updateData);
 
-    if (hasNewImages && existingOffer.image && Array.isArray(existingOffer.image) && existingOffer.image.length > 0) {
-      for (const oldImgUrl of existingOffer.image) {
-        const publicId = extractPublicId(oldImgUrl);
+    // Cleanup old images from Cloudinary if replaced
+    if (imageEntries && existingOffer.images && existingOffer.images.length > 0) {
+      for (const oldImg of existingOffer.images) {
+        const publicId = extractPublicId((oldImg as any).url || oldImg);
         if (publicId) {
-          try {
-            await deleteFromCloudinary(publicId, "image");
-          } catch(e) { console.error(`Failed to cleanup old image ${publicId}`); }
+          try { await deleteFromCloudinary(publicId, "image"); } catch { /* ignore */ }
         }
       }
     }
 
     await CacheService.del("offers:all");
-    await CacheService.del("offers:active");
     await CacheService.del(`offer:${id}`);
+    await CacheService.delPattern("offers:page:*");
 
     return sendSuccessResponse(res, 200, "Offer updated successfully", offer);
   }
 );
 
 /**
- * Delete offer and cleanup images from Cloudinary
+ * Reorder offers on a page
+ * PUT /api/offers/reorder
+ */
+export const reorderOffers = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { page, orderedIds } = req.body;
+
+    if (!page || !Array.isArray(orderedIds)) {
+      throw new AppError("page and orderedIds[] are required", 400);
+    }
+
+    const offers = await offerService.reorderOffers(page, orderedIds);
+
+    await CacheService.del("offers:all");
+    await CacheService.delPattern("offers:page:*");
+
+    return sendSuccessResponse(res, 200, "Offers reordered successfully", offers);
+  }
+);
+
+/**
+ * Delete offer
+ * DELETE /api/offers/:id
  */
 export const deleteOffer = asyncHandler(
   async (req: Request, res: Response) => {
     const id = req.params.id as string;
-    
+
     if (!mongoose.isValidObjectId(id)) {
       throw new AppError("Invalid offer ID format", 400);
     }
 
     const offer = await offerService.getOfferById(id);
-
     if (!offer) {
       throw new AppError("Offer not found", 404);
     }
 
-    // Delete images from Cloudinary
-    if (offer.image && Array.isArray(offer.image) && offer.image.length > 0) {
-      for (const imageUrl of offer.image) {
-        const publicId = extractPublicId(imageUrl);
+    // Cleanup images from Cloudinary
+    if (offer.images && offer.images.length > 0) {
+      for (const img of offer.images) {
+        const publicId = extractPublicId((img as any).url || img);
         if (publicId) {
-          try {
-            await deleteFromCloudinary(publicId, "image");
-          } catch (error) {
-            console.error(`Failed to delete image ${publicId} from Cloudinary:`, error);
-          }
+          try { await deleteFromCloudinary(publicId, "image"); } catch { /* ignore */ }
         }
       }
     }
@@ -339,8 +382,8 @@ export const deleteOffer = asyncHandler(
     await offerService.deleteOfferById(id);
 
     await CacheService.del("offers:all");
-    await CacheService.del("offers:active");
     await CacheService.del(`offer:${id}`);
+    await CacheService.delPattern("offers:page:*");
 
     return sendSuccessResponse(res, 200, "Offer deleted successfully", null);
   }
