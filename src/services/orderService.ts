@@ -81,11 +81,14 @@ class OrderService {
       };
 
       subTotal += snapshot.price * snapshot.quantity;
+
       productSnapshots.push(snapshot);
     }
 
-    // Shipping: free if subtotal >= 500, else ₹50
-    const shippingCost = subTotal >= 500 ? 0 : 50;
+    // Shipping: ₹50 flat, unless free shipping threshold is met
+    const settings = await SiteSettings.findOne();
+    const isFreeShipping = !!(settings?.freeShippingEnabled && subTotal >= (settings?.freeShippingThreshold ?? 1000));
+    const shippingCost = isFreeShipping ? 0 : 50;
     const tax = 0; // No tax calculation for now
     const discount = 0;
     const totalAmount = subTotal + tax + shippingCost - discount;
