@@ -25,7 +25,7 @@ export const getSettings = asyncHandler(async (req: Request, res: Response) => {
  */
 export const updateSettings = asyncHandler(async (req: Request, res: Response) => {
   const existingSettings = await siteSettingsService.getSettings();
-  let { siteName, tagline, contactEmail, contactPhone, themeColors, paymentMethods, razorpayKeyId, razorpayKeySecret } = req.body;
+  let { siteName, tagline, contactEmail, contactPhone, themeColors, paymentMethods, razorpayKeyId, razorpayKeySecret, freeShippingThreshold, freeShippingEnabled } = req.body;
 
   // Smartly handle themeColors: parse if string, and ensure it's an object
   let parsedThemeColors = themeColors;
@@ -103,6 +103,13 @@ export const updateSettings = asyncHandler(async (req: Request, res: Response) =
     logo: logoUrl || "",
     paymentMethods: parsedPaymentMethods,
   };
+
+  if (freeShippingThreshold !== undefined) {
+    updateData.freeShippingThreshold = Number(freeShippingThreshold);
+  }
+  if (freeShippingEnabled !== undefined) {
+    updateData.freeShippingEnabled = freeShippingEnabled === "true" || freeShippingEnabled === true;
+  }
 
   // Only update razorpay config fields if provided
   if (Object.keys(razorpayConfig).length > 0) {

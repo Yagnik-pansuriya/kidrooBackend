@@ -48,8 +48,8 @@ router.get("/", async (req: Request, res: Response) => {
 
     // Add category pages (use slug-based URLs for SEO)
     for (const cat of categories) {
-      const lastmod = cat.updatedAt
-        ? new Date(cat.updatedAt).toISOString().split("T")[0]
+      const lastmod = (cat as any).updatedAt
+        ? new Date((cat as any).updatedAt).toISOString().split("T")[0]
         : new Date().toISOString().split("T")[0];
       const catUrl = (cat as any).slug
         ? `/category/${(cat as any).slug}`
@@ -65,8 +65,8 @@ router.get("/", async (req: Request, res: Response) => {
 
     // Add product pages
     for (const product of products) {
-      const lastmod = product.updatedAt
-        ? new Date(product.updatedAt).toISOString().split("T")[0]
+      const lastmod = (product as any).updatedAt
+        ? new Date((product as any).updatedAt).toISOString().split("T")[0]
         : new Date().toISOString().split("T")[0];
       xml += `  <url>
     <loc>${baseUrl}/product/${product._id}</loc>

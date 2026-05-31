@@ -33,6 +33,8 @@ const seedSiteSettings = async (): Promise<void> => {
         header: "#000000",
         footer: "#031268",
       },
+      freeShippingThreshold: 1000,
+      freeShippingEnabled: false,
     };
 
     // Check if site settings already exist

@@ -20,6 +20,8 @@ export interface ISiteSettings {
     keyId: string;
     keySecret: string;
   };
+  freeShippingThreshold: number;
+  freeShippingEnabled: boolean;
 }
 
 const siteSettingsSchema = new mongoose.Schema<ISiteSettings>(
@@ -91,6 +93,14 @@ const siteSettingsSchema = new mongoose.Schema<ISiteSettings>(
         default: "",
         select: false,  // Never return keySecret in queries by default
       },
+    },
+    freeShippingThreshold: {
+      type: Number,
+      default: 1000,
+    },
+    freeShippingEnabled: {
+      type: Boolean,
+      default: false,
     },
   },
   { timestamps: true },
