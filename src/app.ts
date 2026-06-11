@@ -16,6 +16,7 @@ import indexRoutes from "./routes/index";
 const app = express();
 
 app.disable("x-powered-by");
+app.set("trust proxy", 1);
 
 // **** Environment-based configuration ****
 const isProduction = process.env.NODE_ENV === "production";
