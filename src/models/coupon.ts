@@ -12,6 +12,7 @@ interface ICoupon extends mongoose.Document {
   discountValue: number;
   minOrderAmount?: number;
   maxDiscount?: number;
+  minQuantity?: number;
   applicableProducts: mongoose.Schema.Types.ObjectId[];
   validFrom: Date;
   validTo: Date;
@@ -56,6 +57,10 @@ const couponSchema = new mongoose.Schema<ICoupon>(
     maxDiscount: {
       type: Number,
       default: null,
+    },
+    minQuantity: {
+      type: Number,
+      default: 0,
     },
     applicableProducts: [
       {
