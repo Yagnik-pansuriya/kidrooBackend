@@ -97,6 +97,7 @@ class CouponService {
 
     let applicableItemIds: string[] = [];
     let applicableTotal = 0;
+    let applicableQuantity = 0;
 
     for (const item of cartItems) {
       const isApplicable =
@@ -104,11 +105,21 @@ class CouponService {
       if (isApplicable) {
         applicableItemIds.push(item.productId);
         applicableTotal += item.price * item.quantity;
+        applicableQuantity += item.quantity;
       }
     }
 
     if (applicableItemIds.length === 0) {
       return { valid: false, discount: 0, message: "This coupon is not applicable to any items in your cart" };
+    }
+
+    // Check minimum quantity requirement
+    if (coupon.minQuantity && applicableQuantity < coupon.minQuantity) {
+      return {
+        valid: false,
+        discount: 0,
+        message: `This coupon requires buying at least ${coupon.minQuantity} items`,
+      };
     }
 
     // Check minimum order amount on applicable items

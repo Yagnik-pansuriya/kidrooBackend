@@ -8,6 +8,7 @@ export const createCouponSchema = z.object({
     discountValue: z.coerce.number().min(0, "Discount value must be positive"),
     minOrderAmount: z.coerce.number().min(0).optional(),
     maxDiscount: z.coerce.number().min(0).nullable().optional(),
+    minQuantity: z.coerce.number().min(0).optional(),
     applicableProducts: z.array(z.string()).optional(),
     validFrom: z.string().or(z.date()),
     validTo: z.string().or(z.date()),

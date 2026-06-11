@@ -74,6 +74,7 @@ export const createCoupon = asyncHandler(
       discountValue,
       minOrderAmount,
       maxDiscount,
+      minQuantity,
       applicableProducts,
       validFrom,
       validTo,
@@ -104,6 +105,7 @@ export const createCoupon = asyncHandler(
       discountValue: Number(discountValue),
       minOrderAmount: minOrderAmount ? Number(minOrderAmount) : 0,
       maxDiscount: maxDiscount ? Number(maxDiscount) : null,
+      minQuantity: minQuantity ? Number(minQuantity) : 0,
       applicableProducts: applicableProducts || [],
       validFrom: new Date(validFrom),
       validTo: new Date(validTo),
@@ -142,6 +144,7 @@ export const updateCoupon = asyncHandler(
     if (updateData.discountValue !== undefined) updateData.discountValue = Number(updateData.discountValue);
     if (updateData.minOrderAmount !== undefined) updateData.minOrderAmount = Number(updateData.minOrderAmount);
     if (updateData.maxDiscount !== undefined) updateData.maxDiscount = updateData.maxDiscount ? Number(updateData.maxDiscount) : null;
+    if (updateData.minQuantity !== undefined) updateData.minQuantity = Number(updateData.minQuantity);
     if (updateData.usageLimit !== undefined) updateData.usageLimit = Number(updateData.usageLimit);
     if (updateData.perUserLimit !== undefined) updateData.perUserLimit = Number(updateData.perUserLimit);
     if (updateData.isActive !== undefined) updateData.isActive = updateData.isActive === "true" || updateData.isActive === true;
