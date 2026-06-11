@@ -18,6 +18,7 @@ import orderRoutes from "./orderRoutes";
 import customerOrderRoutes from "./customerOrderRoutes";
 import sitemapRoutes from "./sitemapRoutes";
 import adminCustomerRoutes from "./adminCustomerRoutes";
+import adminSmsCampaignRoutes from "./adminSmsCampaignRoutes";
 
 const router = Router();
 
@@ -39,6 +40,7 @@ router.use("/customer", customerRoutes);
 router.use("/skills", skillRoutes);
 router.use("/orders", orderRoutes);
 router.use("/admin/customers", adminCustomerRoutes);
+router.use("/admin/sms-campaigns", adminSmsCampaignRoutes);
 router.use("/sitemap.xml", sitemapRoutes);
 
 export default router;

@@ -1,22 +1,9 @@
 import twilio from "twilio";
 import AppError from "./appError";
+import { normalizeToE164 } from "./phoneUtils";
 
-/**
- * Normalize Indian mobile to E.164 (+91XXXXXXXXXX).
- * Accepts 10-digit, 91XXXXXXXXXX, or +91XXXXXXXXXX formats.
- */
-export const normalizeToE164 = (mobile: string): string => {
-  const digits = mobile.replace(/\D/g, "");
-
-  if (digits.length === 10 && /^[6-9]/.test(digits)) {
-    return `+91${digits}`;
-  }
-  if (digits.length === 12 && digits.startsWith("91") && /^[6-9]/.test(digits[2])) {
-    return `+${digits}`;
-  }
-
-  throw new AppError("Invalid Indian mobile number format", 400);
-};
+// Re-export for any code that imports normalizeToE164 from this module
+export { normalizeToE164 } from "./phoneUtils";
 
 /**
  * Send an SMS via Twilio.

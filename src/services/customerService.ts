@@ -1,6 +1,6 @@
 import Customer from "../models/customer";
 import AppError from "../utils/appError";
-import { sendSMS } from "../utils/sms";
+import { sendOTP, resendOTP } from "../utils/sms";
 import { CacheService } from "./redisCacheService";
 import {
   generateAndStoreSignupOTP,
@@ -18,7 +18,7 @@ class CustomerService {
   // ═════════════════════ SIGNUP (Step 1) ════════════════════════
 
   /**
-   * Step 1: Validate, store pending data in Redis, send OTP via Twilio SMS.
+   * Step 1: Validate, store pending data in Redis, send OTP via configured provider.
    * Customer is NOT saved to MongoDB until OTP is verified.
    */
   async signup(data: {
@@ -62,18 +62,16 @@ class CustomerService {
       email: data.email?.toLowerCase(),
     });
 
-    // Send OTP via Twilio SMS FIRST — only set cooldown after successful send.
-    // If SMS fails, clean up Redis so the user can retry immediately.
+    // Send OTP via configured provider (MSG91 or Twilio) FIRST —
+    // only set cooldown after a confirmed successful send.
+    // If the send fails, roll back Redis so the user can retry immediately.
     try {
-      await sendSMS(
-        data.mobile,
-        `Your Kidroo verification code is: ${otp}. Valid for 5 minutes. Do not share it with anyone.`
-      );
+      await sendOTP(data.mobile, otp, "verification");
     } catch (err: any) {
-      // Roll back Redis key so user isn't stuck waiting for a cooldown
+      // Roll back Redis key so user isn't stuck behind the cooldown
       const { redis } = await import("../config/redis");
       await redis.del(`otp:signup:${data.mobile}`);
-      throw err; // Re-throw the Twilio error
+      throw err;
     }
 
     // Cooldown only starts after SMS is confirmed sent
@@ -145,10 +143,8 @@ class CustomerService {
     const otp = await refreshSignupOTP(mobile);
     await setResendCooldown(mobile);
 
-    await sendSMS(
-      mobile,
-      `Your Kidroo verification code is: ${otp}. Valid for 5 minutes. Do not share it.`
-    );
+    // resendOTP: MSG91 path uses retry API (same session), Twilio path sends fresh SMS
+    await resendOTP(mobile, otp, "verification");
 
     // LOW-2 FIX: Only log phone numbers in non-production environments
     if (process.env.NODE_ENV !== "production") {
@@ -225,13 +221,10 @@ class CustomerService {
 
     const otp = await generateAndStoreForgotOTP(mobile);
 
-    // Send SMS FIRST — set cooldown only after confirmed delivery.
-    // If SMS fails, clean up Redis so user can retry immediately.
+    // Send OTP via configured provider FIRST — set cooldown only after confirmed delivery.
+    // If send fails, roll back Redis so user can retry immediately.
     try {
-      await sendSMS(
-        mobile,
-        `Your Kidroo password reset code is: ${otp}. Valid for 5 minutes. Do not share it with anyone.`
-      );
+      await sendOTP(mobile, otp, "password reset");
     } catch (err: any) {
       const { redis } = await import("../config/redis");
       await redis.del(`otp:forgot:${mobile}`);
