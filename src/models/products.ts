@@ -35,6 +35,8 @@ export interface IProduct {
   seoTitle?: string;
   seoDescription?: string;
   specifications?: { key: string; value: string }[];
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const productSchema = new mongoose.Schema<IProduct>(

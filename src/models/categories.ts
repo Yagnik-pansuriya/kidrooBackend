@@ -9,6 +9,8 @@ interface ICategory extends mongoose.Document {
   count?: number;
   position?: number;
   isActive?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const categorySchema = new mongoose.Schema<ICategory>({
@@ -49,7 +51,7 @@ const categorySchema = new mongoose.Schema<ICategory>({
     default: true,
   },
 
-})
+}, { timestamps: true })
 
 const Category = mongoose.model<ICategory>("Category", categorySchema);
 
