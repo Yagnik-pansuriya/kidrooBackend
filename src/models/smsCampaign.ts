@@ -12,9 +12,10 @@ interface ICampaignRecipient {
 export interface ISmsCampaign extends Document {
   name: string;
   message: string;
+  channel: "whatsapp";   // Always WhatsApp for now; extend for SMS later
   targetGroup: "all" | "repeat" | "high_value" | "new" | "at_risk" | "custom";
-  targetLabel: string;       // human-readable label, e.g. "All Customers", "VIP + Repeat"
-  targetIds: mongoose.Types.ObjectId[];  // for custom selection
+  targetLabel: string;
+  targetIds: mongoose.Types.ObjectId[];
   status: "draft" | "sent" | "scheduled";
   sentCount: number;
   deliveredCount: number;
@@ -28,7 +29,8 @@ export interface ISmsCampaign extends Document {
 const smsCampaignSchema = new Schema<ISmsCampaign>(
   {
     name: { type: String, required: true, trim: true },
-    message: { type: String, required: true, trim: true, maxlength: 160 },
+    message: { type: String, required: true, trim: true, maxlength: 1024 },
+    channel: { type: String, enum: ["whatsapp"], default: "whatsapp" },
     targetGroup: {
       type: String,
       enum: ["all", "repeat", "high_value", "new", "at_risk", "custom"],
