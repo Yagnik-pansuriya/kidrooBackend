@@ -1,6 +1,7 @@
 import Customer from "../models/customer";
 import AppError from "../utils/appError";
 import { sendOTP, resendOTP } from "../utils/sms";
+import { sendOTPEmail } from "../utils/mailer";
 import { CacheService } from "./redisCacheService";
 import {
   generateAndStoreSignupOTP,
@@ -67,6 +68,13 @@ class CustomerService {
     // If the send fails, roll back Redis so the user can retry immediately.
     try {
       await sendOTP(data.mobile, otp, "verification");
+      
+      // Also send via email if provided
+      if (data.email) {
+        sendOTPEmail(data.email, otp, "verification").catch((e) => 
+          console.error("[OTP:Email] Failed to send to", data.email, e)
+        );
+      }
     } catch (err: any) {
       // Roll back Redis key so user isn't stuck behind the cooldown
       const { redis } = await import("../config/redis");
@@ -143,8 +151,14 @@ class CustomerService {
     const otp = await refreshSignupOTP(mobile);
     await setResendCooldown(mobile);
 
-    // resendOTP: MSG91 path uses retry API (same session), Twilio path sends fresh SMS
     await resendOTP(mobile, otp, "verification");
+
+    // Also resend via email if they had one registered
+    if (pending.email) {
+      sendOTPEmail(pending.email, otp, "verification").catch((e) => 
+        console.error("[OTP:Email] Failed to resend to", pending.email, e)
+      );
+    }
 
     // LOW-2 FIX: Only log phone numbers in non-production environments
     if (process.env.NODE_ENV !== "production") {
@@ -225,6 +239,13 @@ class CustomerService {
     // If send fails, roll back Redis so user can retry immediately.
     try {
       await sendOTP(mobile, otp, "password reset");
+
+      // Also send via email if they have one
+      if (customer.email) {
+        sendOTPEmail(customer.email, otp, "password reset").catch((e) => 
+          console.error("[OTP:Email] Failed to send reset to", customer.email, e)
+        );
+      }
     } catch (err: any) {
       const { redis } = await import("../config/redis");
       await redis.del(`otp:forgot:${mobile}`);
