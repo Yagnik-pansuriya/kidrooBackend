@@ -121,11 +121,14 @@ export const sendMsg91OTP = async (mobile: string, otp: string): Promise<void> =
   const url =
     `https://control.msg91.com/api/v5/otp` +
     `?template_id=${encodeURIComponent(templateId)}` +
-    `&mobile=91${mobile10}` +
-    `&otp=${otp}`;
+    `&mobile=91${mobile10}`;
+
+  const payload = {
+    OTP: otp // This maps to ##OTP## in your MSG91 template
+  };
 
   try {
-    const response = await getJson(url, { authkey: authKey });
+    const response = await postJson(url, payload, { authkey: authKey });
 
     if (response.statusCode >= 400) {
       throw new AppError(
