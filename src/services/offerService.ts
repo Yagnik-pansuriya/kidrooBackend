@@ -70,7 +70,7 @@ class OfferService {
     if (ops.length > 0) {
       await Offer.bulkWrite(ops);
     }
-    return Offer.find({ "placement.page": page }).sort({ "placement.position": 1 }).lean();
+    return Offer.find({ "placement.page": page } as any).sort({ "placement.position": 1 }).lean();
   }
 }
 
