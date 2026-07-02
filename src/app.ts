@@ -96,14 +96,14 @@ app.use(hpp());
 // Body parsing MUST come before body sanitization
 app.use(
   express.json({
-    limit: "10kb",
+    limit: "50mb",
     strict: true, 
   }),
 );
 app.use(
   express.urlencoded({
     extended: true,
-    limit: "10kb",
+    limit: "50mb",
   }),
 );
 
