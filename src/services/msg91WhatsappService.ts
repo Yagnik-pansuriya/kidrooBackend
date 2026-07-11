@@ -106,94 +106,6 @@ function buildBodyComponent(variables: string[]) {
   ];
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// TRANSACTIONAL — Order Confirmation
-// ═════════════════════════════════════════════════════════════════════════════
-
-/**
- * Send an order confirmation WhatsApp message.
- * Template vars: {{1}} name  {{2}} orderId  {{3}} amount  {{4}} paymentMethod
- */
-export async function sendOrderConfirmationWhatsApp(
-  phone: string,
-  customerName: string,
-  orderId: string,
-  totalAmount: number,
-  paymentMethod: "cod" | "online"
-): Promise<void> {
-  try {
-    const templateName =
-      process.env.MSG91_WA_TEMPLATE_ORDER_CONFIRMED ?? "kidroo_order_confirmed";
-
-    const formattedAmount = `₹${totalAmount.toLocaleString("en-IN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
-
-    const formattedPayment =
-      paymentMethod === "cod" ? "Cash on Delivery" : "Online Payment";
-
-    const payload = {
-      messaging_product: "whatsapp",
-      recipient_type: "individual",
-      to: normalisePhone(phone),
-      type: "template",
-      template: {
-        name: templateName,
-        language: { code: "en" },
-        components: buildBodyComponent([
-          customerName,
-          orderId,
-          formattedAmount,
-          formattedPayment,
-        ]),
-      },
-    };
-
-    await postToMsg91(payload, MSG91_WA_SINGLE_PATH);
-  } catch (err: any) {
-    console.error("[MSG91 WhatsApp] sendOrderConfirmationWhatsApp error:", err?.message);
-  }
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-// TRANSACTIONAL — Order Status Update
-// ═════════════════════════════════════════════════════════════════════════════
-
-/**
- * Send an order status update WhatsApp message.
- * Template vars: {{1}} name  {{2}} orderId  {{3}} newStatus
- */
-export async function sendOrderStatusWhatsApp(
-  phone: string,
-  customerName: string,
-  orderId: string,
-  newStatus: string
-): Promise<void> {
-  try {
-    const templateName =
-      process.env.MSG91_WA_TEMPLATE_ORDER_STATUS ?? "kidroo_order_status";
-
-    const formattedStatus =
-      newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
-
-    const payload = {
-      messaging_product: "whatsapp",
-      recipient_type: "individual",
-      to: normalisePhone(phone),
-      type: "template",
-      template: {
-        name: templateName,
-        language: { code: "en" },
-        components: buildBodyComponent([customerName, orderId, formattedStatus]),
-      },
-    };
-
-    await postToMsg91(payload, MSG91_WA_SINGLE_PATH);
-  } catch (err: any) {
-    console.error("[MSG91 WhatsApp] sendOrderStatusWhatsApp error:", err?.message);
-  }
-}
 
 // ═════════════════════════════════════════════════════════════════════════════
 // BROADCAST — Promotional campaign to many recipients
@@ -305,3 +217,82 @@ export async function sendWhatsAppBroadcast(
 
   return { sent: totalSent, delivered: totalDelivered, failed: totalFailed };
 }
+
+/**
+ * Send WhatsApp confirmation when order is successfully created/paid.
+ */
+export async function sendWhatsAppOrderConfirmed(
+  customerName: string,
+  mobile: string,
+  orderId: string,
+  totalAmount: number,
+  paymentMethod: string
+): Promise<boolean> {
+  const authKey          = process.env.MSG91_AUTH_KEY;
+  const integratedNumber = process.env.MSG91_WA_INTEGRATED_NUMBER;
+  const templateName     = process.env.MSG91_WA_TEMPLATE_ORDER_CONFIRMED ?? "kidroo_order_confirmed";
+
+  if (!authKey || !integratedNumber) {
+    console.warn("[MSG91 WhatsApp] Order Confirmation: MSG91 credentials not configured. Skipping WhatsApp notification.");
+    return false;
+  }
+
+  const payload = {
+    messaging_product: "whatsapp",
+    integrated_number: integratedNumber,
+    to: normalisePhone(mobile),
+    type: "template",
+    template: {
+      name: templateName,
+      language: { code: "en" },
+      components: buildBodyComponent([
+        customerName || "Customer",
+        orderId,
+        `₹${Number(totalAmount).toFixed(2)}`,
+        paymentMethod === "cod" ? "Cash on Delivery" : "Online Payment",
+      ]),
+    },
+  };
+
+  const result = await postToMsg91(payload);
+  return result.ok;
+}
+
+/**
+ * Send WhatsApp alert when order status updates (e.g. Confirmed, Shipped, Delivered).
+ */
+export async function sendWhatsAppOrderStatus(
+  customerName: string,
+  mobile: string,
+  orderId: string,
+  newStatus: string
+): Promise<boolean> {
+  const authKey          = process.env.MSG91_AUTH_KEY;
+  const integratedNumber = process.env.MSG91_WA_INTEGRATED_NUMBER;
+  const templateName     = process.env.MSG91_WA_TEMPLATE_ORDER_STATUS ?? "kidroo_order_status";
+
+  if (!authKey || !integratedNumber) {
+    console.warn("[MSG91 WhatsApp] Status Alert: MSG91 credentials not configured. Skipping WhatsApp notification.");
+    return false;
+  }
+
+  const payload = {
+    messaging_product: "whatsapp",
+    integrated_number: integratedNumber,
+    to: normalisePhone(mobile),
+    type: "template",
+    template: {
+      name: templateName,
+      language: { code: "en" },
+      components: buildBodyComponent([
+        customerName || "Customer",
+        orderId,
+        newStatus,
+      ]),
+    },
+  };
+
+  const result = await postToMsg91(payload);
+  return result.ok;
+}
+

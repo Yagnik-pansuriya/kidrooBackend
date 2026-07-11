@@ -14,11 +14,10 @@ import bannerRoutes from "./bannerRoutes";
 import customerAuthRoutes from "./customerAuthRoutes";
 import customerRoutes from "./customerRoutes";
 import skillRoutes from "./skillRoutes";
-import orderRoutes from "./orderRoutes";
-import customerOrderRoutes from "./customerOrderRoutes";
 import sitemapRoutes from "./sitemapRoutes";
 import adminCustomerRoutes from "./adminCustomerRoutes";
 import adminSmsCampaignRoutes from "./adminSmsCampaignRoutes";
+import { customerOrderRouter, adminOrderRouter } from "./orderRoutes";
 
 const router = Router();
 
@@ -35,10 +34,10 @@ router.use("/newsletter", newsletterRoutes);
 router.use("/reviews", reviewRoutes);
 router.use("/banners", bannerRoutes);
 router.use("/customer/auth", customerAuthRoutes);
-router.use("/customer/orders", customerOrderRoutes);
+router.use("/customer/orders", customerOrderRouter);
 router.use("/customer", customerRoutes);
+router.use("/orders", adminOrderRouter);
 router.use("/skills", skillRoutes);
-router.use("/orders", orderRoutes);
 router.use("/admin/customers", adminCustomerRoutes);
 router.use("/admin/sms-campaigns", adminSmsCampaignRoutes);
 router.use("/sitemap.xml", sitemapRoutes);

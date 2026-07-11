@@ -1,124 +1,37 @@
 import { Router } from "express";
 import {
-  authMiddleware,
-  authorizationMiddleware,
-} from "../middlewares/authMiddleware";
-import { checkPermission } from "../middlewares/permissionMiddleware";
-import {
+  createOrder,
+  verifyPayment,
+  getMyOrders,
+  getMyOrderById,
+  getShippingEstimate,
   getAllOrders,
-  getOrderById,
+  getAdminOrderById,
   updateOrderStatus,
+  adminConfirmOrder,
 } from "../controller/orderController";
+import { customerAuthMiddleware } from "../middlewares/customerAuthMiddleware";
+import { authMiddleware } from "../middlewares/authMiddleware";
 
-const router = Router();
+// --- Customer Order Routes ---
+const customerRouter = Router();
 
-/**
- * @swagger
- * /api/orders:
- *   get:
- *     summary: Get all orders (Admin)
- *     description: Retrieve all orders with filtering and pagination
- *     tags:
- *       - Admin Orders
- *     parameters:
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           enum: [all, pending, confirmed, processing, shipped, delivered, cancelled]
- *       - in: query
- *         name: paymentStatus
- *         schema:
- *           type: string
- *           enum: [all, pending, paid, failed, refunded]
- *       - in: query
- *         name: paymentMethod
- *         schema:
- *           type: string
- *           enum: [all, online, cod]
- *       - in: query
- *         name: search
- *         schema:
- *           type: string
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: Orders fetched successfully
- */
-router.get(
-  "/",
-  authMiddleware,
-  authorizationMiddleware(["admin", "moderator"]),
-  getAllOrders,
-);
+// Endpoint to check shipping estimate does not strictly require full auth if guest checkout is needed,
+// but since customer profiles exist, we protect it with customer auth
+customerRouter.use(customerAuthMiddleware);
+customerRouter.get("/shipping-estimate", getShippingEstimate);
+customerRouter.post("/", createOrder);
+customerRouter.post("/verify-payment", verifyPayment);
+customerRouter.get("/", getMyOrders);
+customerRouter.get("/:id", getMyOrderById);
 
-/**
- * @swagger
- * /api/orders/{id}:
- *   get:
- *     summary: Get order detail (Admin)
- *     tags:
- *       - Admin Orders
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Order fetched successfully
- */
-router.get(
-  "/:id",
-  authMiddleware,
-  authorizationMiddleware(["admin", "moderator"]),
-  getOrderById,
-);
+// --- Admin Order Routes ---
+const adminRouter = Router();
+adminRouter.use(authMiddleware);
 
-/**
- * @swagger
- * /api/orders/{id}/status:
- *   patch:
- *     summary: Update order status (Admin)
- *     tags:
- *       - Admin Orders
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [orderStatus]
- *             properties:
- *               orderStatus:
- *                 type: string
- *                 enum: [pending, confirmed, processing, shipped, delivered, cancelled]
- *               paymentStatus:
- *                 type: string
- *                 enum: [pending, paid, failed, refunded]
- *     responses:
- *       200:
- *         description: Order status updated
- */
-router.patch(
-  "/:id/status",
-  authMiddleware,
-  authorizationMiddleware(["admin", "moderator"]),
-  updateOrderStatus,
-);
+adminRouter.get("/", getAllOrders);
+adminRouter.get("/:id", getAdminOrderById);
+adminRouter.post("/:id/confirm", adminConfirmOrder);
+adminRouter.patch("/:id/status", updateOrderStatus);
 
-export default router;
+export { customerRouter as customerOrderRouter, adminRouter as adminOrderRouter };

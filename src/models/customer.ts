@@ -48,10 +48,6 @@ export interface ICustomer extends Document {
   avatar?: string;
   addresses: IAddress[];
   wishlist: mongoose.Types.ObjectId[];
-  orderHistory: {
-    orderId: mongoose.Types.ObjectId;
-    orderDate: Date;
-  }[];
   // OTP fields
   otp?: string;
   otpExpiry?: Date;
@@ -122,12 +118,6 @@ const customerSchema = new Schema<ICustomer>(
       {
         type: Schema.Types.ObjectId,
         ref: "Product",
-      },
-    ],
-    orderHistory: [
-      {
-        orderId: { type: Schema.Types.ObjectId, ref: "Order" },
-        orderDate: { type: Date, default: Date.now },
       },
     ],
     // OTP for mobile verification

@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import Customer from "../models/customer";
-import Order from "../models/order";
 import AppError from "../utils/appError";
 import { sendSuccessResponse } from "../utils/apiResponse";
 import { asyncHandler } from "../utils/asyncHandler";
@@ -15,76 +14,35 @@ export const getCustomerSummary = asyncHandler(async (_req: Request, res: Respon
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const [summary] = await Customer.aggregate([
-    {
-      // Join every customer with their orders
-      $lookup: {
-        from: "orders",
-        localField: "_id",
-        foreignField: "customerId",
-        as: "orders",
-      },
-    },
-    {
-      $addFields: {
-        orderCount: { $size: "$orders" },
-        // Sum of non-cancelled order amounts per customer
-        lifetimeValue: {
-          $sum: {
-            $map: {
-              input: {
-                $filter: {
-                  input: "$orders",
-                  as: "o",
-                  cond: { $ne: ["$$o.orderStatus", "cancelled"] },
-                },
-              },
-              as: "o",
-              in: "$$o.totalAmount",
-            },
-          },
-        },
-        isRepeat: { $gt: [{ $size: "$orders" }, 1] },
-        isNewThisMonth: { $gte: ["$createdAt", startOfMonth] },
-      },
-    },
-    {
-      $group: {
-        _id: null,
-        total:         { $sum: 1 },
-        newThisMonth:  { $sum: { $cond: ["$isNewThisMonth", 1, 0] } },
-        repeatCount:   { $sum: { $cond: ["$isRepeat",      1, 0] } },
-        totalLTV:      { $sum: "$lifetimeValue" },
-      },
-    },
-    {
-      $project: {
-        _id: 0,
-        total:        1,
-        newThisMonth: 1,
-        repeatCount:  1,
-        repeatRate: {
-          $cond: [
-            { $gt: ["$total", 0] },
-            {
-              $round: [
-                { $multiply: [{ $divide: ["$repeatCount", "$total"] }, 100] },
-                0,
-              ],
-            },
-            0,
-          ],
-        },
-        avgLTV: {
-          $cond: [
-            { $gt: ["$total", 0] },
-            { $round: [{ $divide: ["$totalLTV", "$total"] }, 0] },
-            0,
-          ],
+    const [summary] = await Customer.aggregate([
+      {
+        $addFields: {
+          orderCount: 0,
+          lifetimeValue: 0,
+          isRepeat: false,
+          isNewThisMonth: { $gte: ["$createdAt", startOfMonth] },
         },
       },
-    },
-  ]);
+      {
+        $group: {
+          _id: null,
+          total:         { $sum: 1 },
+          newThisMonth:  { $sum: { $cond: ["$isNewThisMonth", 1, 0] } },
+          repeatCount:   { $sum: 0 },
+          totalLTV:      { $sum: 0 },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          total:        1,
+          newThisMonth: 1,
+          repeatCount:  1,
+          repeatRate:   { $literal: 0 },
+          avgLTV:       { $literal: 0 },
+        },
+      },
+    ]);
 
   const stats = summary || {
     total: 0,
@@ -149,33 +107,11 @@ export const getAllCustomers = asyncHandler(async (req: Request, res: Response) 
   const pipeline: mongoose.PipelineStage[] = [
     { $match: matchFilter },
     {
-      $lookup: {
-        from: "orders",
-        localField: "_id",
-        foreignField: "customerId",
-        as: "orders",
-      },
-    },
-    {
       $addFields: {
-        totalOrders: { $size: "$orders" },
-        totalSpent: {
-          $sum: {
-            $map: {
-              input: {
-                $filter: {
-                  input: "$orders",
-                  as: "o",
-                  cond: { $ne: ["$$o.orderStatus", "cancelled"] },
-                },
-              },
-              as: "o",
-              in: "$$o.totalAmount",
-            },
-          },
-        },
-        repeatCustomer: { $gt: [{ $size: "$orders" }, 1] },
-        lastOrderDate:  { $max: "$orders.createdAt" },
+        totalOrders: 0,
+        totalSpent: 0,
+        repeatCustomer: false,
+        lastOrderDate: null,
       },
     },
   ];
@@ -248,29 +184,15 @@ export const getCustomerById = asyncHandler(
       throw new AppError("Customer not found", 404);
     }
 
-    // Fetch all orders for this customer
-    const orders = await Order.find({ customerId: oid } as any)
-      .sort({ createdAt: -1 })
-      .select(
-        "orderId totalAmount orderStatus paymentStatus paymentMethod createdAt products subTotal discount shippingCost"
-      )
-      .lean();
-
-    const totalSpent = orders
-      .filter((o) => o.orderStatus !== "cancelled")
-      .reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+    const orders: any[] = [];
 
     const stats = {
-      totalOrders:     orders.length,
-      totalSpent,
-      completedOrders: orders.filter((o) => o.orderStatus === "delivered").length,
-      cancelledOrders: orders.filter((o) => o.orderStatus === "cancelled").length,
-      pendingOrders:   orders.filter(
-        (o) => !["delivered", "cancelled"].includes(o.orderStatus)
-      ).length,
-      averageOrderValue: orders.length
-        ? parseFloat((totalSpent / orders.length).toFixed(2))
-        : 0,
+      totalOrders: 0,
+      totalSpent: 0,
+      completedOrders: 0,
+      cancelledOrders: 0,
+      pendingOrders: 0,
+      averageOrderValue: 0,
     };
 
     return sendSuccessResponse(res, 200, "Customer fetched successfully", {
