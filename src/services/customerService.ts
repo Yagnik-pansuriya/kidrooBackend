@@ -1,6 +1,7 @@
 import Customer from "../models/customer";
 import AppError from "../utils/appError";
 import { sendOTP, resendOTP } from "../utils/sms";
+import { sendMsg91OTPEmail } from "../utils/msg91Email";
 import { CacheService } from "./redisCacheService";
 import {
   generateAndStoreSignupOTP,
@@ -82,6 +83,13 @@ class CustomerService {
       console.log(`[OTP:Signup] SMS sent to +91${data.mobile}`);
     }
 
+    // Email OTP is supplementary — fire-and-forget, never blocks signup
+    if (data.email) {
+      sendMsg91OTPEmail(data.email, data.firstName, otp).catch((err) =>
+        console.error("[OTP:Signup] Email send error:", err?.message)
+      );
+    }
+
     return {
       message: "OTP sent to your mobile number. Please verify to complete registration.",
       mobile: data.mobile,
@@ -148,6 +156,13 @@ class CustomerService {
     // LOW-2 FIX: Only log phone numbers in non-production environments
     if (process.env.NODE_ENV !== "production") {
       console.log(`[OTP:Resend] SMS resent to +91${mobile}`);
+    }
+
+    // Email OTP is supplementary — fire-and-forget, never blocks resend
+    if (pending.email) {
+      sendMsg91OTPEmail(pending.email, pending.firstName, otp).catch((err) =>
+        console.error("[OTP:Resend] Email send error:", err?.message)
+      );
     }
 
     return { message: "OTP resent to your mobile number." };
