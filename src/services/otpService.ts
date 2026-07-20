@@ -3,8 +3,8 @@ import { redis } from "../config/redis";
 import AppError from "../utils/appError";
 
 // ── Constants ─────────────────────────────────────────────────────
-const OTP_TTL_SECONDS = 5 * 60;        // OTP valid for 5 min
-const PENDING_TTL_SECONDS = 10 * 60;   // Pending record lives 10 min (allows 1 resend)
+const OTP_TTL_SECONDS = 10 * 60;       // OTP valid for 10 min (must match DLT template text)
+const PENDING_TTL_SECONDS = 15 * 60;   // Pending record lives 15 min (allows 1 resend)
 const RESEND_COOLDOWN_SECONDS = 60;    // 60-second cooldown between resends
 const MAX_OTP_ATTEMPTS = 5;            // Brute-force guard
 

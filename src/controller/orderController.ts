@@ -8,6 +8,7 @@ import { inventoryService } from "../services/inventoryService";
 import { couponService } from "../services/couponService";
 import { shiprocketService } from "../services/shiprocketService";
 import { sendWhatsAppOrderConfirmed, sendWhatsAppOrderStatus } from "../services/msg91WhatsappService";
+import { sendMsg91OrderConfirmedEmail } from "../utils/msg91Email";
 import { getRazorpayInstance } from "../config/razorpay";
 import { asyncHandler } from "../utils/asyncHandler";
 import { sendSuccessResponse } from "../utils/apiResponse";
@@ -231,6 +232,15 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
           netAmount,
           "cod"
         );
+        if (customerDoc.email) {
+          sendMsg91OrderConfirmedEmail(
+            customerDoc.email,
+            `${customerDoc.firstName} ${customerDoc.lastName}`,
+            orderId,
+            netAmount,
+            "cod"
+          );
+        }
       }
     } catch (whatsappErr) {
       console.error("[WhatsApp] Error sending confirmation:", whatsappErr);
@@ -297,6 +307,15 @@ export const verifyPayment = asyncHandler(async (req: Request, res: Response) =>
         order.netAmount,
         "online"
       );
+      if (customerDoc.email) {
+        sendMsg91OrderConfirmedEmail(
+          customerDoc.email,
+          `${customerDoc.firstName} ${customerDoc.lastName}`,
+          order.orderId,
+          order.netAmount,
+          "online"
+        );
+      }
     }
   } catch (whatsappErr) {
     console.error("[WhatsApp] Error sending payment confirmation:", whatsappErr);
