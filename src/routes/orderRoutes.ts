@@ -10,6 +10,7 @@ import {
   updateOrderStatus,
   adminConfirmOrder,
 } from "../controller/orderController";
+import { getAdminDashboardAnalytics } from "../controller/analyticsController";
 import { customerAuthMiddleware } from "../middlewares/customerAuthMiddleware";
 import { authMiddleware } from "../middlewares/authMiddleware";
 
@@ -29,6 +30,7 @@ customerRouter.get("/:id", getMyOrderById);
 const adminRouter = Router();
 adminRouter.use(authMiddleware);
 
+adminRouter.get("/analytics", getAdminDashboardAnalytics);
 adminRouter.get("/", getAllOrders);
 adminRouter.get("/:id", getAdminOrderById);
 adminRouter.post("/:id/confirm", adminConfirmOrder);
