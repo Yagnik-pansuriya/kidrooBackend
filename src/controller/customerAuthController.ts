@@ -16,7 +16,7 @@ const setCustomerCookies = (
   const isProduction = process.env.NODE_ENV === "production";
 
   res.cookie("customerAccessToken", accessToken, {
-    maxAge: 15 * 60 * 1000, // 15 minutes — matches JWT "15m"
+    maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year — matches JWT 1-year expiry
     httpOnly: true,
     secure: isProduction,
     sameSite: "strict",
@@ -24,7 +24,7 @@ const setCustomerCookies = (
   });
 
   res.cookie("customerRefreshToken", refreshToken, {
-    maxAge: 7 * 24 * 60 * 60 * 1000, // LOW-5 FIX: 7 days — matches JWT "7d" expiry
+    maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year — matches JWT 1-year expiry
     httpOnly: true,
     secure: isProduction,
     sameSite: "strict",

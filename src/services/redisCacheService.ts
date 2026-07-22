@@ -37,7 +37,7 @@ export class CacheService {
   // Key: rt:{userId}, Value: raw refresh token string, TTL: 7 days.
 
   static async setRefreshToken(userId: string, token: string): Promise<void> {
-    await redis.set(`rt:${userId}`, token, "EX", 7 * 24 * 60 * 60);
+    await redis.set(`rt:${userId}`, token, "EX", 24 * 60 * 60);
   }
 
   static async getRefreshToken(userId: string): Promise<string | null> {
@@ -53,7 +53,7 @@ export class CacheService {
   // Key: crt:{customerId}, Value: raw refresh token string, TTL: 30 days.
 
   static async setCustomerRefreshToken(customerId: string, token: string): Promise<void> {
-    await redis.set(`crt:${customerId}`, token, "EX", 30 * 24 * 60 * 60);
+    await redis.set(`crt:${customerId}`, token, "EX", 365 * 24 * 60 * 60);
   }
 
   static async getCustomerRefreshToken(customerId: string): Promise<string | null> {

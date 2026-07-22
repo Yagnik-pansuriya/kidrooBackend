@@ -31,16 +31,20 @@ const generateToken = (payload: JWTPayload, expiresIn: string): string => {
 };
 
 /**
- * Generate a short-lived access token (15 minutes).
+ * Generate a short-lived access token (1 year for customer, 24 hours for admin/staff).
  */
-export const generateAccessToken = (payload: Omit<JWTPayload, "type">): string =>
-  generateToken({ ...payload, type: "access" }, "15m");
+export const generateAccessToken = (payload: Omit<JWTPayload, "type">): string => {
+  const expiry = payload.role === "customer" ? "365d" : "24h";
+  return generateToken({ ...payload, type: "access" }, expiry);
+};
 
 /**
- * Generate a long-lived refresh token (7 days).
+ * Generate a long-lived refresh token (1 year for customer, 24 hours for admin/staff).
  */
-export const generateRefreshToken = (payload: Omit<JWTPayload, "type">): string =>
-  generateToken({ ...payload, type: "refresh" }, "7d");
+export const generateRefreshToken = (payload: Omit<JWTPayload, "type">): string => {
+  const expiry = payload.role === "customer" ? "365d" : "24h";
+  return generateToken({ ...payload, type: "refresh" }, expiry);
+};
 
 /**
  * Generate both access and refresh tokens.

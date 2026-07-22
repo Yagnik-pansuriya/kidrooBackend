@@ -49,7 +49,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 
   // Send tokens via HttpOnly cookies ONLY — never expose in response body
   sendTokenCookies(res, accessToken, refreshToken, {
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge: 24 * 60 * 60 * 1000,
   });
 
   const permissions = await PermissionService.getPermissions(user._id.toString());
@@ -123,7 +123,7 @@ export const refreshAccessToken = asyncHandler(async (req: Request, res: Respons
   await CacheService.setRefreshToken(user._id.toString(), newRefreshToken);
 
   sendTokenCookies(res, newAccessToken, newRefreshToken, {
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge: 24 * 60 * 60 * 1000,
   });
 
   const permissions = await PermissionService.getPermissions(user._id.toString());
