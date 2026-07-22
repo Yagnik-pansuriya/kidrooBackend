@@ -352,7 +352,7 @@ export const getOfferAndCouponAnalytics = asyncHandler(async (req: Request, res:
   }
   startDate.setHours(0, 0, 0, 0);
 
-  const baseFilter = {
+  const baseFilter: any = {
     createdAt: { $gte: startDate },
     status: { $ne: "Cancelled" },
   };
