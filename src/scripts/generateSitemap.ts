@@ -4,8 +4,9 @@ import path from "path";
 import fs from "fs";
 import Product from "../models/products";
 import Category from "../models/categories";
+import { slugify } from "../utils/slugify";
 
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, "../../.env") });
 
 const escapeXml = (str: string): string => {
   if (!str) return "";
@@ -21,13 +22,18 @@ const cleanComment = (str: string): string => {
   return escapeXml(str).replace(/--/g, "-");
 };
 
+const getDynamicBaseUrl = (): string => {
+  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL.replace(/\/$/, "");
+  return process.env.NODE_ENV === "development" ? "http://localhost:5173" : "https://kidroo.in";
+};
+
 const generateSitemapFile = async () => {
   try {
-    const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI || "mongodb://localhost:27017/kidroo";
+    const mongoUri = process.env.DB_URL || process.env.MONGO_URI || process.env.MONGODB_URI || "mongodb://localhost:27017/kidroo";
     console.log("Connecting to MongoDB...");
     await mongoose.connect(mongoUri);
 
-    const baseUrl = process.env.FRONTEND_URL || "https://kidroo.in";
+    const baseUrl = getDynamicBaseUrl();
 
     console.log("Fetching products & categories...");
     const products = await Product.find({ isActive: true })
@@ -47,6 +53,7 @@ const generateSitemapFile = async () => {
     ];
 
     let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="/sitemap.xsl"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 `;
@@ -61,33 +68,37 @@ const generateSitemapFile = async () => {
 `;
     }
 
-    // Category pages
+    // Category pages (slug-based)
     for (const cat of categories) {
       const catObj = cat as any;
       const catName = catObj.catagoryName || catObj.name || "Category";
+      const catSlug = catObj.slug || slugify(catName) || catObj._id;
       const lastmod = catObj.updatedAt
         ? new Date(catObj.updatedAt).toISOString().split("T")[0]
         : new Date().toISOString().split("T")[0];
-      const catUrl = catObj.slug
-        ? `/category/${catObj.slug}`
-        : `/shop?category=${cat._id}`;
 
       xml += `  <!-- Category: ${cleanComment(catName)} -->
   <url>
-    <loc>${baseUrl}${catUrl}</loc>
+    <loc>${baseUrl}/category/${catSlug}</loc>
     <lastmod>${lastmod}</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
   </url>
 `;
     }
 
-    // Product pages
+    // Product pages (slug-based URLs + multi-image Google SEO)
     for (const product of products) {
       const prodObj = product as any;
       const prodName = prodObj.productName || "Product";
-      const prodSlug = prodObj.slug || prodObj._id;
-      const imgUrl = prodObj.image || (Array.isArray(prodObj.images) && prodObj.images.length > 0 ? prodObj.images[0] : "");
+      const prodSlug = prodObj.slug || slugify(prodName) || prodObj._id;
+      const allImages: string[] = [];
+      if (prodObj.image) allImages.push(prodObj.image);
+      if (Array.isArray(prodObj.images)) {
+        for (const img of prodObj.images) {
+          if (img && !allImages.includes(img)) allImages.push(img);
+        }
+      }
       const lastmod = prodObj.updatedAt
         ? new Date(prodObj.updatedAt).toISOString().split("T")[0]
         : new Date().toISOString().split("T")[0];
@@ -96,10 +107,10 @@ const generateSitemapFile = async () => {
   <url>
     <loc>${baseUrl}/product/${prodSlug}</loc>
     <lastmod>${lastmod}</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>`;
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>`;
 
-      if (imgUrl) {
+      for (const imgUrl of allImages.slice(0, 5)) {
         xml += `
     <image:image>
       <image:loc>${escapeXml(imgUrl)}</image:loc>
@@ -115,7 +126,6 @@ const generateSitemapFile = async () => {
 
     xml += `</urlset>`;
 
-    // Output target locations (frontend public & frontend dist if available)
     const targetPaths = [
       path.join(__dirname, "../../../frontend/public/sitemap.xml"),
       path.join(__dirname, "../../../frontend/dist/sitemap.xml"),

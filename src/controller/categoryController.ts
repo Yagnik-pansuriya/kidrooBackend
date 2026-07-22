@@ -8,6 +8,7 @@ import { sendErrorResponse, sendSuccessResponse } from "../utils/apiResponse";
 import { categoryService } from "../services/categoryService";
 import mongoose from "mongoose";
 import { slugify } from "../utils/slugify";
+import { triggerSitemapRegeneration } from "../utils/sitemapGenerator";
 
 /**
  * Get All Categories
@@ -165,6 +166,7 @@ export const createCategory = asyncHandler(
 
     // clear cache
     await CacheService.del("categories");
+    triggerSitemapRegeneration().catch(() => {});
 
     return sendSuccessResponse(res, 201, "Category created successfully", category);
   }
@@ -296,6 +298,7 @@ export const updateCategory = asyncHandler(
     if (slug && slug !== existingCategory.slug) {
       await CacheService.del(`category:slug:${slug}`);
     }
+    triggerSitemapRegeneration().catch(() => {});
 
     return sendSuccessResponse(res, 200, "Category updated successfully", category);
   }
@@ -368,6 +371,7 @@ export const deleteCategory = asyncHandler(
     if (category.slug) {
       await CacheService.del(`category:slug:${category.slug}`);
     }
+    triggerSitemapRegeneration().catch(() => {});
 
     return sendSuccessResponse(res, 200, "Category deleted successfully", null);
   }

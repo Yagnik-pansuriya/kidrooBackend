@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import Product from "../models/products";
 import Category from "../models/categories";
+import { slugify } from "../utils/slugify";
 
 const router = Router();
 
@@ -18,26 +19,34 @@ const cleanComment = (str: string): string => {
   return escapeXml(str).replace(/--/g, "-");
 };
 
+const getDynamicBaseUrl = (req: Request): string => {
+  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL.replace(/\/$/, "");
+  const host = req.get("host");
+  if (host) {
+    const isHttps = req.protocol === "https" || req.headers["x-forwarded-proto"] === "https";
+    const protocol = isHttps ? "https" : "http";
+    return `${protocol}://${host}`;
+  }
+  return process.env.NODE_ENV === "development" ? "http://localhost:5173" : "https://kidroo.in";
+};
+
 /**
  * GET /sitemap.xml & GET /api/sitemap.xml
- * Generates a dynamic XML sitemap for search engines with product names & images.
+ * Generates dynamic XML sitemap using environmental/request dynamic domain URLs.
  */
 router.get("/", async (req: Request, res: Response) => {
   try {
-    const baseUrl = process.env.FRONTEND_URL || "https://kidroo.in";
+    const baseUrl = getDynamicBaseUrl(req);
 
-    // Fetch active products with productName, slug, image, images, updatedAt
     const products = await Product.find({ isActive: true })
       .select("productName slug image images updatedAt _id")
       .sort({ position: 1 })
       .lean();
 
-    // Fetch categories with catagoryName, name, slug, updatedAt
     const categories = await Category.find({})
       .select("catagoryName name slug updatedAt _id")
       .lean();
 
-    // Static pages
     const staticPages = [
       { url: "/", priority: "1.0", changefreq: "daily" },
       { url: "/shop", priority: "0.9", changefreq: "daily" },
@@ -46,11 +55,12 @@ router.get("/", async (req: Request, res: Response) => {
     ];
 
     let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="/sitemap.xsl"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 `;
 
-    // Add static pages
+    // Static pages
     for (const page of staticPages) {
       xml += `  <url>
     <loc>${baseUrl}${page.url}</loc>
@@ -60,33 +70,37 @@ router.get("/", async (req: Request, res: Response) => {
 `;
     }
 
-    // Add category pages (use slug-based URLs + Category Name comment)
+    // Category pages (slug-based)
     for (const cat of categories) {
       const catObj = cat as any;
       const catName = catObj.catagoryName || catObj.name || "Category";
+      const catSlug = catObj.slug || slugify(catName) || catObj._id;
       const lastmod = catObj.updatedAt
         ? new Date(catObj.updatedAt).toISOString().split("T")[0]
         : new Date().toISOString().split("T")[0];
-      const catUrl = catObj.slug
-        ? `/category/${catObj.slug}`
-        : `/shop?category=${cat._id}`;
 
       xml += `  <!-- Category: ${cleanComment(catName)} -->
   <url>
-    <loc>${baseUrl}${catUrl}</loc>
+    <loc>${baseUrl}/category/${catSlug}</loc>
     <lastmod>${lastmod}</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
   </url>
 `;
     }
 
-    // Add product pages with product names & google image tags
+    // Product pages (slug-based URLs + multi-image Google SEO)
     for (const product of products) {
       const prodObj = product as any;
       const prodName = prodObj.productName || "Product";
-      const prodSlug = prodObj.slug || prodObj._id;
-      const imgUrl = prodObj.image || (Array.isArray(prodObj.images) && prodObj.images.length > 0 ? prodObj.images[0] : "");
+      const prodSlug = prodObj.slug || slugify(prodName) || prodObj._id;
+      const allImages: string[] = [];
+      if (prodObj.image) allImages.push(prodObj.image);
+      if (Array.isArray(prodObj.images)) {
+        for (const img of prodObj.images) {
+          if (img && !allImages.includes(img)) allImages.push(img);
+        }
+      }
       const lastmod = prodObj.updatedAt
         ? new Date(prodObj.updatedAt).toISOString().split("T")[0]
         : new Date().toISOString().split("T")[0];
@@ -95,10 +109,10 @@ router.get("/", async (req: Request, res: Response) => {
   <url>
     <loc>${baseUrl}/product/${prodSlug}</loc>
     <lastmod>${lastmod}</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>`;
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>`;
 
-      if (imgUrl) {
+      for (const imgUrl of allImages.slice(0, 5)) {
         xml += `
     <image:image>
       <image:loc>${escapeXml(imgUrl)}</image:loc>
@@ -114,8 +128,8 @@ router.get("/", async (req: Request, res: Response) => {
 
     xml += `</urlset>`;
 
-    res.set("Content-Type", "application/xml");
-    res.set("Cache-Control", "public, max-age=3600"); // Cache for 1 hour
+    res.set("Content-Type", "application/xml; charset=UTF-8");
+    res.set("Cache-Control", "public, max-age=3600");
     res.send(xml);
   } catch (error) {
     console.error("Sitemap generation error:", error);
