@@ -18,13 +18,15 @@ const cleanComment = (str: string): string => {
   return escapeXml(str).replace(/--/g, "-");
 };
 
-const getDynamicBaseUrl = (): string => {
-  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL.replace(/\/$/, "");
-  return process.env.NODE_ENV === "development" ? "http://localhost:5173" : "https://kidroo.in";
+const getSitemapBaseUrl = (): string => {
+  if (process.env.FRONTEND_URL && !process.env.FRONTEND_URL.includes("localhost")) {
+    return process.env.FRONTEND_URL.replace(/\/$/, "");
+  }
+  return "https://kidroo.in";
 };
 
 export const generateSitemapXml = async (): Promise<string> => {
-  const baseUrl = getDynamicBaseUrl();
+  const baseUrl = getSitemapBaseUrl();
 
   const products = await Product.find({ isActive: true })
     .select("productName slug image images updatedAt _id")

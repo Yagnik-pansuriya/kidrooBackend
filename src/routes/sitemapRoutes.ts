@@ -20,14 +20,15 @@ const cleanComment = (str: string): string => {
 };
 
 const getDynamicBaseUrl = (req: Request): string => {
-  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL.replace(/\/$/, "");
-  const host = req.get("host");
-  if (host) {
-    const isHttps = req.protocol === "https" || req.headers["x-forwarded-proto"] === "https";
-    const protocol = isHttps ? "https" : "http";
-    return `${protocol}://${host}`;
+  const host = req.get("host") || "";
+  // Only use localhost URL if request explicitly came to localhost/127.0.0.1
+  if (host.includes("localhost") || host.includes("127.0.0.1")) {
+    return `http://${host}`;
   }
-  return process.env.NODE_ENV === "development" ? "http://localhost:5173" : "https://kidroo.in";
+  if (process.env.FRONTEND_URL && !process.env.FRONTEND_URL.includes("localhost")) {
+    return process.env.FRONTEND_URL.replace(/\/$/, "");
+  }
+  return "https://kidroo.in";
 };
 
 /**
