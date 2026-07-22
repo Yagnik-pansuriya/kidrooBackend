@@ -12,6 +12,7 @@ import authRoutes from "./routes/authRoutes";
 import uploadRoutes from "./routes/uploadRoutes";
 import swaggerRoutes from "./routes/swaggerRoutes";
 import indexRoutes from "./routes/index";
+import sitemapRoutes from "./routes/sitemapRoutes";
 
 const app = express();
 
@@ -191,6 +192,7 @@ app.get("/", (req, res) => {
   });
 });
 
+app.use("/sitemap.xml", sitemapRoutes);
 app.use("/api", indexRoutes);
 
 app.use("/docs", swaggerRoutes);

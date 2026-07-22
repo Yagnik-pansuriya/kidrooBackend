@@ -4,24 +4,33 @@ import Category from "../models/categories";
 
 const router = Router();
 
+const escapeXml = (str: string): string => {
+  if (!str) return "";
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+};
+
 /**
- * GET /api/sitemap.xml
- * Generates a dynamic XML sitemap for search engines.
- * Includes all public pages + all active product pages + category pages.
+ * GET /sitemap.xml & GET /api/sitemap.xml
+ * Generates a dynamic XML sitemap for search engines with product names & images.
  */
 router.get("/", async (req: Request, res: Response) => {
   try {
-    const baseUrl = process.env.FRONTEND_URL || "https://kidrootoys.com";
+    const baseUrl = process.env.FRONTEND_URL || "https://kidroo.in";
 
-    // Fetch all active products (only need slug and updatedAt)
+    // Fetch active products with productName, slug, image, images, updatedAt
     const products = await Product.find({ isActive: true })
-      .select("slug updatedAt _id")
+      .select("productName slug image images updatedAt _id")
       .sort({ position: 1 })
       .lean();
 
-    // Fetch all categories
+    // Fetch categories with catagoryName, name, slug, updatedAt
     const categories = await Category.find({})
-      .select("_id slug updatedAt")
+      .select("catagoryName name slug updatedAt _id")
       .lean();
 
     // Static pages
@@ -33,7 +42,8 @@ router.get("/", async (req: Request, res: Response) => {
     ];
 
     let xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 `;
 
     // Add static pages
@@ -46,15 +56,19 @@ router.get("/", async (req: Request, res: Response) => {
 `;
     }
 
-    // Add category pages (use slug-based URLs for SEO)
+    // Add category pages (use slug-based URLs + Category Name comment)
     for (const cat of categories) {
-      const lastmod = (cat as any).updatedAt
-        ? new Date((cat as any).updatedAt).toISOString().split("T")[0]
+      const catObj = cat as any;
+      const catName = catObj.catagoryName || catObj.name || "Category";
+      const lastmod = catObj.updatedAt
+        ? new Date(catObj.updatedAt).toISOString().split("T")[0]
         : new Date().toISOString().split("T")[0];
-      const catUrl = (cat as any).slug
-        ? `/category/${(cat as any).slug}`
+      const catUrl = catObj.slug
+        ? `/category/${encodeURIComponent(catObj.slug)}`
         : `/shop?category=${cat._id}`;
-      xml += `  <url>
+
+      xml += `  <!-- Category: ${escapeXml(catName)} -->
+  <url>
     <loc>${baseUrl}${catUrl}</loc>
     <lastmod>${lastmod}</lastmod>
     <changefreq>weekly</changefreq>
@@ -63,16 +77,33 @@ router.get("/", async (req: Request, res: Response) => {
 `;
     }
 
-    // Add product pages
+    // Add product pages with product names & google image tags
     for (const product of products) {
-      const lastmod = (product as any).updatedAt
-        ? new Date((product as any).updatedAt).toISOString().split("T")[0]
+      const prodObj = product as any;
+      const prodName = prodObj.productName || "Product";
+      const prodSlug = prodObj.slug || prodObj._id;
+      const imgUrl = prodObj.image || (Array.isArray(prodObj.images) && prodObj.images.length > 0 ? prodObj.images[0] : "");
+      const lastmod = prodObj.updatedAt
+        ? new Date(prodObj.updatedAt).toISOString().split("T")[0]
         : new Date().toISOString().split("T")[0];
-      xml += `  <url>
-    <loc>${baseUrl}/product/${product._id}</loc>
+
+      xml += `  <!-- Product: ${escapeXml(prodName)} -->
+  <url>
+    <loc>${baseUrl}/product/${encodeURIComponent(prodSlug)}</loc>
     <lastmod>${lastmod}</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.8</priority>`;
+
+      if (imgUrl) {
+        xml += `
+    <image:image>
+      <image:loc>${escapeXml(imgUrl)}</image:loc>
+      <image:title>${escapeXml(prodName)}</image:title>
+      <image:caption>${escapeXml(prodName)}</image:caption>
+    </image:image>`;
+      }
+
+      xml += `
   </url>
 `;
     }
