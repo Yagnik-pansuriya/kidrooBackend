@@ -56,6 +56,8 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
       "http://127.0.0.1:5000",
       "https://kidroo.vercel.app",
       "https://kidrootoys.vercel.app",
+      "https://kidroo.in",
+      "https://www.kidroo.in",
     ];
 
 app.use(
@@ -74,7 +76,11 @@ app.use(
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error("CORS policy: Origin not allowed"));
+        callback(
+          new Error(
+            `CORS policy: Origin "${origin}" not allowed. Allowed origins: ${allowedOrigins.join(", ")}`
+          )
+        );
       }
     },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
