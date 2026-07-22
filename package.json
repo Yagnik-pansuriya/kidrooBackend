@@ -17,8 +17,8 @@
     "test:product-apis": "node scripts/testProductApis.js",
     "test:sms": "ts-node src/scripts/smsTest.ts",
     "test:sms:otp": "ts-node src/scripts/smsTest.ts",
-    "test:sms:all": "ts-node src/scripts/smsTest.ts"
-
+    "test:sms:all": "ts-node src/scripts/smsTest.ts",
+    "generate-sitemap": "ts-node src/scripts/generateSitemap.ts"
   },
   "devDependencies": {
     "@types/compression": "^1.8.1",

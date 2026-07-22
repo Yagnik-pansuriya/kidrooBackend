@@ -1,8 +1,11 @@
-import { Router, Request, Response } from "express";
+import mongoose from "mongoose";
+import dotenv from "dotenv";
+import path from "path";
+import fs from "fs";
 import Product from "../models/products";
 import Category from "../models/categories";
 
-const router = Router();
+dotenv.config();
 
 const escapeXml = (str: string): string => {
   if (!str) return "";
@@ -18,26 +21,24 @@ const cleanComment = (str: string): string => {
   return escapeXml(str).replace(/--/g, "-");
 };
 
-/**
- * GET /sitemap.xml & GET /api/sitemap.xml
- * Generates a dynamic XML sitemap for search engines with product names & images.
- */
-router.get("/", async (req: Request, res: Response) => {
+const generateSitemapFile = async () => {
   try {
+    const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI || "mongodb://localhost:27017/kidroo";
+    console.log("Connecting to MongoDB...");
+    await mongoose.connect(mongoUri);
+
     const baseUrl = process.env.FRONTEND_URL || "https://kidroo.in";
 
-    // Fetch active products with productName, slug, image, images, updatedAt
+    console.log("Fetching products & categories...");
     const products = await Product.find({ isActive: true })
       .select("productName slug image images updatedAt _id")
       .sort({ position: 1 })
       .lean();
 
-    // Fetch categories with catagoryName, name, slug, updatedAt
     const categories = await Category.find({})
       .select("catagoryName name slug updatedAt _id")
       .lean();
 
-    // Static pages
     const staticPages = [
       { url: "/", priority: "1.0", changefreq: "daily" },
       { url: "/shop", priority: "0.9", changefreq: "daily" },
@@ -50,7 +51,7 @@ router.get("/", async (req: Request, res: Response) => {
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 `;
 
-    // Add static pages
+    // Static pages
     for (const page of staticPages) {
       xml += `  <url>
     <loc>${baseUrl}${page.url}</loc>
@@ -60,7 +61,7 @@ router.get("/", async (req: Request, res: Response) => {
 `;
     }
 
-    // Add category pages (use slug-based URLs + Category Name comment)
+    // Category pages
     for (const cat of categories) {
       const catObj = cat as any;
       const catName = catObj.catagoryName || catObj.name || "Category";
@@ -81,7 +82,7 @@ router.get("/", async (req: Request, res: Response) => {
 `;
     }
 
-    // Add product pages with product names & google image tags
+    // Product pages
     for (const product of products) {
       const prodObj = product as any;
       const prodName = prodObj.productName || "Product";
@@ -114,13 +115,27 @@ router.get("/", async (req: Request, res: Response) => {
 
     xml += `</urlset>`;
 
-    res.set("Content-Type", "application/xml");
-    res.set("Cache-Control", "public, max-age=3600"); // Cache for 1 hour
-    res.send(xml);
-  } catch (error) {
-    console.error("Sitemap generation error:", error);
-    res.status(500).send("Error generating sitemap");
-  }
-});
+    // Output target locations (frontend public & frontend dist if available)
+    const targetPaths = [
+      path.join(__dirname, "../../../frontend/public/sitemap.xml"),
+      path.join(__dirname, "../../../frontend/dist/sitemap.xml"),
+    ];
 
-export default router;
+    for (const targetPath of targetPaths) {
+      const dir = path.dirname(targetPath);
+      if (fs.existsSync(dir)) {
+        fs.writeFileSync(targetPath, xml, "utf-8");
+        console.log(`✅ Successfully generated sitemap.xml at: ${targetPath}`);
+      }
+    }
+
+    await mongoose.disconnect();
+    console.log("Done!");
+    process.exit(0);
+  } catch (err) {
+    console.error("Error generating sitemap file:", err);
+    process.exit(1);
+  }
+};
+
+generateSitemapFile();
