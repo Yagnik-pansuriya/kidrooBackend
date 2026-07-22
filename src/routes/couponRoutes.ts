@@ -8,6 +8,7 @@ import {
   deleteCoupon,
   validateCoupon,
 } from "../controller/couponController";
+import { getOfferAndCouponAnalytics } from "../controller/analyticsController";
 import {
   authMiddleware,
   authorizationMiddleware,
@@ -21,6 +22,31 @@ import {
 } from "../utils/validators/couponValidators";
 
 const router = Router();
+
+/**
+ * @swagger
+ * /api/coupons/analytics:
+ *   get:
+ *     summary: Get coupon & offer analytics (Admin)
+ *     tags:
+ *       - Coupons
+ *     parameters:
+ *       - in: query
+ *         name: timeframe
+ *         schema:
+ *           type: string
+ *           enum: [weekly, monthly, yearly]
+ *     responses:
+ *       200:
+ *         description: Coupon & offer usage analytics
+ */
+router.get(
+  "/analytics",
+  authMiddleware,
+  authorizationMiddleware(["admin", "moderator"]),
+  checkPermission("/offers"),
+  getOfferAndCouponAnalytics
+);
 
 /**
  * @swagger

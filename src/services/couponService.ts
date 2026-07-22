@@ -1,4 +1,5 @@
 import Coupon from "../models/coupon";
+import Order from "../models/order";
 import mongoose from "mongoose";
 
 class CouponService {
@@ -11,10 +12,31 @@ class CouponService {
     if (visibility === "public" || visibility === "private") {
       filter.visibility = visibility;
     }
-    return Coupon.find(filter)
+    const coupons = await Coupon.find(filter)
       .populate("applicableProducts", "productName slug images price")
       .sort({ createdAt: -1 })
       .lean();
+
+    // Dynamically calculate actual coupon usages from Orders
+    const orderCouponCounts = await Order.aggregate([
+      { $match: { couponCode: { $exists: true, $nin: [null, ""] }, status: { $ne: "Cancelled" } } },
+      { $group: { _id: "$couponCode", count: { $sum: 1 } } },
+    ]);
+
+    const countMap = new Map<string, number>();
+    orderCouponCounts.forEach((c) => {
+      if (c._id) countMap.set(c._id.toString().toUpperCase(), c.count);
+    });
+
+    return coupons.map((coupon) => {
+      const codeKey = (coupon.code || "").toUpperCase();
+      const actualOrderUses = countMap.get(codeKey) || 0;
+      const effectiveUsedCount = Math.max(coupon.usedCount || 0, actualOrderUses);
+      return {
+        ...coupon,
+        usedCount: effectiveUsedCount,
+      };
+    });
   }
 
   async getPublicCoupons() {
