@@ -6,6 +6,7 @@ import AppError from "../utils/appError";
 import { customerService } from "../services/customerService";
 import { CacheService } from "../services/redisCacheService";
 import Customer from "../models/customer";
+import { triggerRealtimeBackup } from "../utils/realtimeBackup";
 
 // ── Shared cookie setter ──────────────────────────────────────────
 const setCustomerCookies = (
@@ -106,6 +107,7 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
   }
 
   const customer = await customerService.verifyOTP(mobile, otp);
+  triggerRealtimeBackup("customer signup verified");
   const { accessToken, refreshToken } = await issueTokens(customer);
 
   setCustomerCookies(res, accessToken, refreshToken);

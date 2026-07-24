@@ -18,7 +18,9 @@
     "test:sms": "ts-node src/scripts/smsTest.ts",
     "test:sms:otp": "ts-node src/scripts/smsTest.ts",
     "test:sms:all": "ts-node src/scripts/smsTest.ts",
-    "generate-sitemap": "ts-node src/scripts/generateSitemap.ts"
+    "generate-sitemap": "ts-node src/scripts/generateSitemap.ts",
+    "db:backup": "ts-node src/scripts/backupDatabase.ts",
+    "db:restore": "ts-node src/scripts/restoreDatabase.ts"
   },
   "devDependencies": {
     "@types/compression": "^1.8.1",

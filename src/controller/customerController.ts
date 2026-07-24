@@ -3,6 +3,7 @@ import { asyncHandler } from "../utils/asyncHandler";
 import { sendSuccessResponse } from "../utils/apiResponse";
 import AppError from "../utils/appError";
 import { customerService } from "../services/customerService";
+import { triggerRealtimeBackup } from "../utils/realtimeBackup";
 
 // ═══════════════════ PROFILE ═══════════════════
 
@@ -21,6 +22,8 @@ export const updateProfile = asyncHandler(async (req: Request, res: Response) =>
     alternatePhone,
     avatar,
   });
+
+  triggerRealtimeBackup("customer profile update");
 
   return sendSuccessResponse(res, 200, "Profile updated successfully", customer);
 });
@@ -129,6 +132,7 @@ export const toggleWishlist = asyncHandler(async (req: Request, res: Response) =
   }
 
   const result = await customerService.toggleWishlist(customerId, productId);
+  triggerRealtimeBackup("customer wishlist update");
 
   const message = result.action === "added"
     ? "Product added to wishlist"

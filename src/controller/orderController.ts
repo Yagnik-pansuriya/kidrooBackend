@@ -13,6 +13,7 @@ import { getRazorpayInstance } from "../config/razorpay";
 import { asyncHandler } from "../utils/asyncHandler";
 import { sendSuccessResponse } from "../utils/apiResponse";
 import AppError from "../utils/appError";
+import { triggerRealtimeBackup } from "../utils/realtimeBackup";
 
 // ═══════════════════════════════════════════════════════════════
 // CUSTOMER CONTROLLERS
@@ -214,6 +215,8 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
     shippingAddress,
     razorpayOrderId,
   });
+
+  triggerRealtimeBackup("new order placed");
 
   // Apply Coupon usage count in DB if applicable
   if (validatedCoupon && validatedCoupon.couponId) {

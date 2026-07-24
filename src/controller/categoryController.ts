@@ -9,6 +9,7 @@ import { categoryService } from "../services/categoryService";
 import mongoose from "mongoose";
 import { slugify } from "../utils/slugify";
 import { triggerSitemapRegeneration } from "../utils/sitemapGenerator";
+import { triggerRealtimeBackup } from "../utils/realtimeBackup";
 
 /**
  * Get All Categories
@@ -167,6 +168,7 @@ export const createCategory = asyncHandler(
     // clear cache
     await CacheService.del("categories");
     triggerSitemapRegeneration().catch(() => {});
+    triggerRealtimeBackup("category mutation");
 
     return sendSuccessResponse(res, 201, "Category created successfully", category);
   }
@@ -299,6 +301,7 @@ export const updateCategory = asyncHandler(
       await CacheService.del(`category:slug:${slug}`);
     }
     triggerSitemapRegeneration().catch(() => {});
+    triggerRealtimeBackup("category mutation");
 
     return sendSuccessResponse(res, 200, "Category updated successfully", category);
   }
@@ -372,6 +375,7 @@ export const deleteCategory = asyncHandler(
       await CacheService.del(`category:slug:${category.slug}`);
     }
     triggerSitemapRegeneration().catch(() => {});
+    triggerRealtimeBackup("category mutation");
 
     return sendSuccessResponse(res, 200, "Category deleted successfully", null);
   }

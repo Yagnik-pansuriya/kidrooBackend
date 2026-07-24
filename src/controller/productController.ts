@@ -14,6 +14,7 @@ import mongoose from "mongoose";
 import Product from "../models/products";
 import { slugify } from "../utils/slugify";
 import { triggerSitemapRegeneration } from "../utils/sitemapGenerator";
+import { triggerRealtimeBackup } from "../utils/realtimeBackup";
 
 /**
  * Get All Products
@@ -315,6 +316,7 @@ export const createProduct = asyncHandler(
 
     await CacheService.delPattern("products:page:*");
     triggerSitemapRegeneration().catch(() => {});
+    triggerRealtimeBackup("product create");
 
     // Re-fetch with populated categories/skills
     const populatedProduct = await productService.getProductById(
@@ -578,6 +580,7 @@ export const deleteProduct = asyncHandler(
     await CacheService.del(`product:${id}`);
     await CacheService.del("products:filters");
     triggerSitemapRegeneration().catch(() => {});
+    triggerRealtimeBackup("product delete");
 
     return sendSuccessResponse(res, 200, "Product deleted successfully", null);
   },

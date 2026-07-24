@@ -13,3 +13,8 @@ typescript-errors.txt
 
 # Vercel
 .vercel
+
+# Database Backups
+backups/
+backups
+
