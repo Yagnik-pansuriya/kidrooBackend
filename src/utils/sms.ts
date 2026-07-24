@@ -1,4 +1,4 @@
-import { sendMsg91SMS, sendMsg91OTP } from "./msg91";
+import { sendMsg91SMS, sendMsg91OTP, sendMsg91ResetPasswordOTP } from "./msg91";
 import { sendTwilioSMS } from "./twilio";
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -28,10 +28,14 @@ export const sendOTP = async (
   }
 
   if (provider === "twilio") {
-    await sendTwilioSMS(mobile, `Your Kidroo ${context} code is: ${otp}. Valid for 5 minutes. Do not share with anyone.`);
+    await sendTwilioSMS(mobile, `Your Kidroo ${context} code is: ${otp}. Valid for 10 minutes. Do not share with anyone.`);
   } else {
-    // Default: msg91
-    await sendMsg91OTP(mobile, otp);
+    // MSG91: use separate DLT template for password reset vs signup
+    if (context === "password reset") {
+      await sendMsg91ResetPasswordOTP(mobile, otp);
+    } else {
+      await sendMsg91OTP(mobile, otp);
+    }
   }
 };
 

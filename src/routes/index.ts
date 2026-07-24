@@ -18,6 +18,7 @@ import sitemapRoutes from "./sitemapRoutes";
 import adminCustomerRoutes from "./adminCustomerRoutes";
 import adminSmsCampaignRoutes from "./adminSmsCampaignRoutes";
 import { customerOrderRouter, adminOrderRouter } from "./orderRoutes";
+import whatsappTestRoutes from "./whatsappTestRoutes";
 
 const router = Router();
 
@@ -41,5 +42,6 @@ router.use("/skills", skillRoutes);
 router.use("/admin/customers", adminCustomerRoutes);
 router.use("/admin/sms-campaigns", adminSmsCampaignRoutes);
 router.use("/sitemap.xml", sitemapRoutes);
+router.use("/whatsapp", whatsappTestRoutes);
 
 export default router;
