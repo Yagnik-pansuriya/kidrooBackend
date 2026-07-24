@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
+import { CacheService } from "../services/redisCacheService";
 
 dotenv.config({ path: path.join(__dirname, "../../.env") });
 
@@ -15,28 +16,41 @@ export const runRestore = async (backupFolderName?: string) => {
       throw new Error(`Backup directory '${BACKUP_DIR}' does not exist. No backups found.`);
     }
 
-    let targetFolder = "";
-    if (backupFolderName) {
-      targetFolder = path.join(BACKUP_DIR, backupFolderName);
-    } else {
-      // Find latest backup folder
-      const allBackups = fs
-        .readdirSync(BACKUP_DIR)
-        .filter((f) => f.startsWith("backup_"))
-        .sort((a, b) => b.localeCompare(a));
+    const allBackups = fs
+      .readdirSync(BACKUP_DIR)
+      .filter((f) => f.startsWith("backup_") || f.startsWith("realtime_"))
+      .sort((a, b) => b.localeCompare(a));
 
-      if (allBackups.length === 0) {
-        throw new Error("No backup folders starting with 'backup_' found in backups directory.");
-      }
-      targetFolder = path.join(BACKUP_DIR, allBackups[0]);
+    if (allBackups.length === 0) {
+      throw new Error("No backup folders found in backups directory.");
     }
 
+    let targetFolderName = backupFolderName;
+    if (!targetFolderName) {
+      targetFolderName = allBackups[0];
+      console.log("\n📋 Available Backup Snapshots:");
+      allBackups.slice(0, 5).forEach((folder, idx) => {
+        const metaPath = path.join(BACKUP_DIR, folder, "metadata.json");
+        let metaInfo = "";
+        if (fs.existsSync(metaPath)) {
+          try {
+            const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
+            metaInfo = `(${meta.totalDocuments || 0} docs - ${meta.reason || "Scheduled"})`;
+          } catch {}
+        }
+        console.log(`  ${idx === 0 ? "👉 [LATEST]" : "   "} ${folder} ${metaInfo}`);
+      });
+      console.log(`\nTo restore a specific earlier backup, run: npm run db:restore <folder_name>\n`);
+    }
+
+    const targetFolder = path.join(BACKUP_DIR, targetFolderName);
+
     if (!fs.existsSync(targetFolder)) {
-      throw new Error(`Target backup folder '${targetFolder}' does not exist.`);
+      throw new Error(`Target backup folder '${targetFolderName}' does not exist.`);
     }
 
     console.log("🔄 Starting Kidroo Database Restore...");
-    console.log(`📂 Using Backup Folder: ${targetFolder}`);
+    console.log(`📂 Restoring from Folder: ${targetFolderName}`);
     console.log(`Connecting to MongoDB...`);
 
     await mongoose.connect(mongoUri);
@@ -52,7 +66,6 @@ export const runRestore = async (backupFolderName?: string) => {
       const rawData = fs.readFileSync(filePath, "utf-8");
       const docs = JSON.parse(rawData);
 
-      // Convert String _id and BSON types if necessary
       const parsedDocs = docs.map((doc: any) => {
         if (doc._id && typeof doc._id === "string" && doc._id.length === 24) {
           doc._id = new mongoose.Types.ObjectId(doc._id);
@@ -70,6 +83,14 @@ export const runRestore = async (backupFolderName?: string) => {
         await db.collection(colName).insertMany(parsedDocs);
       }
       console.log(`     ✅ Successfully restored '${colName}'`);
+    }
+
+    // Flush Redis Cache so API instantly returns restored MongoDB data
+    try {
+      await CacheService.delPattern("*");
+      console.log("🧹 Flushed Redis cache so restored data is served immediately.");
+    } catch {
+      // Redis optional
     }
 
     console.log(`🎉 Database restoration completed cleanly!`);
