@@ -6,7 +6,31 @@ import fs from "fs";
 dotenv.config({ path: path.join(__dirname, "../../.env") });
 
 const BACKUP_DIR = path.join(__dirname, "../../../backups");
-const RETENTION_DAYS = 14; // Keep last 14 days of backups
+const MAX_BACKUPS = 15; // Strictly keep maximum 15 backup folders to save disk space
+
+/**
+ * Prunes backup directory so total backup folders never exceed maxCount
+ */
+export const pruneExcessBackups = (backupDir: string = BACKUP_DIR, maxCount: number = MAX_BACKUPS) => {
+  try {
+    if (!fs.existsSync(backupDir)) return;
+    const allBackups = fs
+      .readdirSync(backupDir)
+      .filter((f) => f.startsWith("backup_") || f.startsWith("realtime_"))
+      .sort((a, b) => b.localeCompare(a)); // Sort newest first
+
+    if (allBackups.length > maxCount) {
+      const excessFolders = allBackups.slice(maxCount);
+      for (const folder of excessFolders) {
+        const fullPath = path.join(backupDir, folder);
+        fs.rmSync(fullPath, { recursive: true, force: true });
+        console.log(`🧹 Pruned old backup (max ${maxCount} limit): ${folder}`);
+      }
+    }
+  } catch (err) {
+    console.error("Error pruning excess backups:", err);
+  }
+};
 
 export const runBackup = async () => {
   try {
@@ -40,7 +64,13 @@ export const runBackup = async () => {
       fs.writeFileSync(filePath, JSON.stringify(docs, null, 2), "utf-8");
       summary[colName] = docs.length;
       totalDocs += docs.length;
-      console.log(`  └─ Backed up collection '${colName}': ${docs.length} documents`);
+    }
+
+    if (totalDocs === 0) {
+      console.warn("⚠️ Aborted backup: Database has 0 documents. Existing backups preserved.");
+      fs.rmSync(targetFolder, { recursive: true, force: true });
+      await mongoose.disconnect();
+      return;
     }
 
     // Save backup metadata
@@ -57,18 +87,8 @@ export const runBackup = async () => {
     console.log(`📂 Location: ${targetFolder}`);
     console.log(`📊 Summary: ${totalDocs} documents across ${collections.length} collections.`);
 
-    // ── Retention Policy Cleanup ──
-    const allBackups = fs.readdirSync(BACKUP_DIR).filter((f) => f.startsWith("backup_"));
-    const cutoffTime = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
-
-    for (const bFolder of allBackups) {
-      const fullPath = path.join(BACKUP_DIR, bFolder);
-      const stat = fs.statSync(fullPath);
-      if (stat.ctimeMs < cutoffTime) {
-        fs.rmSync(fullPath, { recursive: true, force: true });
-        console.log(`🧹 Cleaned up old backup folder (>14 days old): ${bFolder}`);
-      }
-    }
+    // ── Enforce Strict Max 15 Backups Limit ──
+    pruneExcessBackups(BACKUP_DIR, MAX_BACKUPS);
 
     await mongoose.disconnect();
     console.log("🔌 Database connection closed cleanly.");

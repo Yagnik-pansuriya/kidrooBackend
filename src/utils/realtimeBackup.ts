@@ -1,19 +1,21 @@
 import path from "path";
 import fs from "fs";
 import mongoose from "mongoose";
+import { pruneExcessBackups } from "../scripts/backupDatabase";
 
 const BACKUP_DIR = path.join(__dirname, "../../../backups");
 let lastBackupTime = 0;
-const DEBOUNCE_INTERVAL_MS = 3 * 60 * 1000; // 3 minutes buffer to avoid excessive disk I/O
+const DEBOUNCE_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes buffer to avoid excessive disk I/O
 
 /**
  * Non-blocking real-time background backup trigger.
  * Called whenever products, categories, offers, orders, or accounts are mutated.
+ * Strictly maintains MAX 15 total backup folders.
  */
 export const triggerRealtimeBackup = (reason: string): void => {
   const now = Date.now();
   if (now - lastBackupTime < DEBOUNCE_INTERVAL_MS) {
-    // A backup was taken within the last 3 minutes; skip to optimize performance
+    // A backup was taken within the last 5 minutes; skip to optimize performance
     return;
   }
   lastBackupTime = now;
@@ -44,6 +46,12 @@ export const triggerRealtimeBackup = (reason: string): void => {
         totalDocs += docs.length;
       }
 
+      if (totalDocs === 0) {
+        fs.rmSync(targetFolder, { recursive: true, force: true });
+        console.log(`[RealtimeBackup] Skipped empty backup (0 docs). Existing backups preserved.`);
+        return;
+      }
+
       fs.writeFileSync(
         path.join(targetFolder, "metadata.json"),
         JSON.stringify({ timestamp: new Date().toISOString(), reason, totalDocuments: totalDocs, summary }, null, 2),
@@ -51,6 +59,9 @@ export const triggerRealtimeBackup = (reason: string): void => {
       );
 
       console.log(`[RealtimeBackup] Saved instant backup triggered by '${reason}' (${totalDocs} docs).`);
+
+      // Enforce strict 15 backups max limit
+      pruneExcessBackups(BACKUP_DIR, 15);
     } catch (err) {
       console.error("[RealtimeBackup] Failed real-time background backup:", err);
     }
