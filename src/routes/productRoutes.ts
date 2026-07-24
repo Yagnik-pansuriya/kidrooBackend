@@ -23,6 +23,12 @@ import {
   createProductSchema,
   updateProductSchema,
 } from "../utils/validators/productValidators";
+import {
+  getVariantsByProduct,
+  createVariant,
+  updateVariant,
+  deleteVariant,
+} from "../controller/variantController";
 
 const router = Router();
 
@@ -353,5 +359,69 @@ router.get("/:id/related", getRelatedProducts);
  *         description: Product not found
  */
 router.get("/:id", getProductById);
+
+// ── Variant Routes (nested under products) ────────────────────────────────────
+/**
+ * @swagger
+ * /api/products/{productId}/variants:
+ *   get:
+ *     summary: Get all variants for a product
+ *     tags: [Variants]
+ *     parameters:
+ *       - in: path
+ *         name: productId
+ *         required: true
+ *         schema:
+ *           type: string
+ */
+router.get("/:productId/variants", getVariantsByProduct);
+
+/**
+ * @swagger
+ * /api/products/{productId}/variants:
+ *   post:
+ *     summary: Create a new variant for a product (Admin)
+ *     tags: [Variants]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post(
+  "/:productId/variants",
+  authMiddleware,
+  authorizationMiddleware,
+  createVariant
+);
+
+/**
+ * @swagger
+ * /api/products/{productId}/variants/{variantId}:
+ *   put:
+ *     summary: Update a variant (Admin)
+ *     tags: [Variants]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.put(
+  "/:productId/variants/:variantId",
+  authMiddleware,
+  authorizationMiddleware,
+  updateVariant
+);
+
+/**
+ * @swagger
+ * /api/products/{productId}/variants/{variantId}:
+ *   delete:
+ *     summary: Delete a variant (Admin)
+ *     tags: [Variants]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.delete(
+  "/:productId/variants/:variantId",
+  authMiddleware,
+  authorizationMiddleware,
+  deleteVariant
+);
 
 export default router;

@@ -183,3 +183,33 @@ export const sendMsg91OrderConfirmedEmail = async (
     },
   });
 };
+
+/**
+ * Send a forgot-password / reset-password OTP email.
+ * Template variables: "name", "otp" — must match ##name## / ##otp## placeholders
+ * in your MSG91 dashboard template exactly (case-sensitive).
+ *
+ * Required env var: MSG91_EMAIL_RESET_PASSWORD_TEMPLATE_ID
+ */
+export const sendMsg91ResetPasswordEmail = async (
+  toEmail: string,
+  toName: string,
+  otp: string
+): Promise<boolean> => {
+  const templateId = process.env.MSG91_EMAIL_RESET_PASSWORD_TEMPLATE_ID;
+  if (!templateId) {
+    console.warn(
+      "[MSG91 Email] MSG91_EMAIL_RESET_PASSWORD_TEMPLATE_ID not set — skipping reset password email."
+    );
+    return false;
+  }
+
+  return sendMsg91Email({
+    templateId,
+    to: { name: toName || "there", email: toEmail },
+    variables: {
+      name: toName || "there",
+      otp,
+    },
+  });
+};

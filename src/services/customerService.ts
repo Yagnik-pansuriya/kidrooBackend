@@ -1,7 +1,7 @@
 import Customer from "../models/customer";
 import AppError from "../utils/appError";
 import { sendOTP, resendOTP } from "../utils/sms";
-import { sendMsg91OTPEmail } from "../utils/msg91Email";
+import { sendMsg91OTPEmail, sendMsg91ResetPasswordEmail } from "../utils/msg91Email";
 import { CacheService } from "./redisCacheService";
 import {
   generateAndStoreSignupOTP,
@@ -251,6 +251,13 @@ class CustomerService {
     // LOW-2 FIX: Only log phone numbers in non-production environments
     if (process.env.NODE_ENV !== "production") {
       console.log(`[OTP:ForgotPassword] SMS sent to +91${mobile}`);
+    }
+
+    // Send reset password OTP via email too — fire-and-forget, never blocks SMS flow
+    if (customer.email) {
+      sendMsg91ResetPasswordEmail(customer.email, customer.firstName, otp).catch((err) =>
+        console.error("[OTP:ForgotPassword] Email send error:", err?.message)
+      );
     }
 
     return { message: "If this number is registered, an OTP has been sent." };
