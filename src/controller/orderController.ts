@@ -127,20 +127,16 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
   }
 
   // 2. Query courier serviceability to find exact shipping charges
-  let shippingCharges = 50; // Default flat fallback
-  try {
-    const carriers = await shiprocketService.checkServiceability(
-      shippingAddress.zipCode,
-      0.5 * orderItems.length,
-      paymentMethod === "cod"
-    );
-    if (carriers.length > 0) {
-      const cheapest = carriers.reduce((prev, curr) => (prev.rate < curr.rate ? prev : curr));
-      shippingCharges = cheapest.rate + (paymentMethod === "cod" ? cheapest.cod : 0);
-    }
-  } catch (err) {
-    console.warn("[OrderController] Shiprocket serviceability error, using flat shipping.");
+  const carriers = await shiprocketService.checkServiceability(
+    shippingAddress.zipCode,
+    0.5 * orderItems.length,
+    paymentMethod === "cod"
+  );
+  if (carriers.length === 0) {
+    throw new AppError("No courier services available for this pincode.", 400);
   }
+  const cheapest = carriers.reduce((prev, curr) => (prev.rate < curr.rate ? prev : curr));
+  const shippingCharges = cheapest.rate + (paymentMethod === "cod" ? cheapest.cod : 0);
 
   // 3. Handle coupon validation & calculations
   let couponDiscount = 0;
@@ -512,6 +508,15 @@ export const adminConfirmOrder = asyncHandler(async (req: Request, res: Response
     billing_email: customerDoc.email || "support@kidrootoys.co",
     billing_phone: customerDoc.mobile,
     shipping_is_billing: true,
+    shipping_customer_name: customerDoc.firstName,
+    shipping_last_name: customerDoc.lastName,
+    shipping_address: `${order.shippingAddress.houseNo || ""} ${order.shippingAddress.street}`.trim(),
+    shipping_city: order.shippingAddress.city,
+    shipping_pincode: order.shippingAddress.zipCode,
+    shipping_state: order.shippingAddress.state,
+    shipping_country: order.shippingAddress.country || "India",
+    shipping_email: customerDoc.email || "support@kidrootoys.co",
+    shipping_phone: customerDoc.mobile,
     order_items: itemsPayload,
     payment_method: order.paymentMethod === "cod" ? ("COD" as const) : ("Prepaid" as const),
     sub_total: order.totalItemsPrice,
@@ -539,15 +544,14 @@ export const adminConfirmOrder = asyncHandler(async (req: Request, res: Response
     order.paymentMethod === "cod"
   );
 
-  let selectedCourierId = undefined;
-  let courierName = "Shiprocket Express";
-
-  if (carriers.length > 0) {
-    // Pick the highest rated partner
-    const bestCourier = carriers.reduce((prev, curr) => (prev.rating > curr.rating ? prev : curr));
-    selectedCourierId = bestCourier.courier_company_id;
-    courierName = bestCourier.courier_name;
+  if (carriers.length === 0) {
+    throw new AppError("No courier partners available for this pin code and weight.", 400);
   }
+
+  // Pick the highest rated partner
+  const bestCourier = carriers.reduce((prev, curr) => (prev.rating > curr.rating ? prev : curr));
+  const selectedCourierId = bestCourier.courier_company_id;
+  const courierName = bestCourier.courier_name;
 
   const awbResponse = await shiprocketService.assignAwb(shipmentId, selectedCourierId);
   if (!awbResponse) {
