@@ -529,7 +529,18 @@ export const adminConfirmOrder = asyncHandler(async (req: Request, res: Response
   };
 
   console.log(`[Shiprocket] Creating order in Shiprocket for ${order.orderId}...`);
-  const srResponse = await shiprocketService.createOrder(shiprocketOrderData);
+  let srResponse;
+  try {
+    srResponse = await shiprocketService.createOrder(shiprocketOrderData);
+  } catch (err: any) {
+    if (err.message && (err.message.includes("Please add billing/shipping address first") || err.message.includes("Please add billing\\/shipping address first"))) {
+      throw new AppError(
+        "Your Shiprocket account setup is incomplete. Please log in to the Shiprocket panel (https://app.shiprocket.in) and add your Company's Billing/Shipping Address under Settings > Company Setup > Company Details, and add a valid warehouse address under Settings > Pickup Addresses.",
+        400
+      );
+    }
+    throw err;
+  }
   if (!srResponse) {
     throw new AppError("Failed to create order inside Shiprocket. Check logs.", 522);
   }
