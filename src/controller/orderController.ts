@@ -25,7 +25,7 @@ import { triggerRealtimeBackup } from "../utils/realtimeBackup";
  */
 export const getShippingEstimate = asyncHandler(async (req: Request, res: Response) => {
   const pincode = req.query.pincode as string;
-  const weight = Number(req.query.weight || 0.5);
+  const weight = Number(req.query.weight) || 0.5;
   const cod = req.query.cod === "true";
 
   if (!pincode || !/^\d{6}$/.test(pincode)) {
@@ -123,13 +123,20 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
       productName: name,
       skuCode: sku,
       image: img,
+      weight: (product as any).weight || 0.5,
+      length: (product as any).length || 15,
+      breadth: (product as any).breadth || 10,
+      width: (product as any).width || 10,
+      height: (product as any).height || 10,
     });
   }
 
-  // 2. Query courier serviceability to find exact shipping charges
+   // 2. Query courier serviceability to find exact shipping charges
+  // Calculate total weight from actual product weights
+  const totalWeight = orderItems.reduce((sum: number, item: any) => sum + ((item.weight || 0.5) * item.quantity), 0);
   const carriers = await shiprocketService.checkServiceability(
     shippingAddress.zipCode,
-    0.5 * orderItems.length,
+    Math.max(0.01, totalWeight),
     paymentMethod === "cod"
   );
   if (carriers.length === 0) {
@@ -495,6 +502,9 @@ export const adminConfirmOrder = asyncHandler(async (req: Request, res: Response
     selling_price: item.price,
   }));
 
+  // Calculate total weight from order item weights
+  const totalOrderWeight = order.items.reduce((sum: number, item: any) => sum + ((item.weight || 0.5) * item.quantity), 0);
+
   const shiprocketOrderData = {
     order_id: order.orderId,
     order_date: new Date(order.createdAt).toISOString().replace("T", " ").slice(0, 19),
@@ -522,11 +532,13 @@ export const adminConfirmOrder = asyncHandler(async (req: Request, res: Response
     sub_total: order.totalItemsPrice,
     shipping_charges: order.shippingCharges,
     total_discount: order.couponDiscount,
-    weight: 0.5 * order.items.length,
-    length: 15,
-    width: 10,
-    height: 10,
+    weight: Math.max(0.01, totalOrderWeight),
+    length: Math.max(...order.items.map((i: any) => i.length || 15)),
+    breadth: Math.max(...order.items.map((i: any) => i.breadth || 10)),
+    width: Math.max(...order.items.map((i: any) => i.width || 10)),
+    height: order.items.reduce((sum: number, i: any) => sum + ((i.height || 10) * i.quantity), 0),
   };
+
 
   console.log(`[Shiprocket] Creating order in Shiprocket for ${order.orderId}...`);
   let srResponse;
@@ -551,7 +563,7 @@ export const adminConfirmOrder = asyncHandler(async (req: Request, res: Response
   console.log(`[Shiprocket] Finding courier partner and assigning AWB for shipment ${shipmentId}...`);
   const carriers = await shiprocketService.checkServiceability(
     order.shippingAddress.zipCode,
-    0.5 * order.items.length,
+    Math.max(0.01, totalOrderWeight),
     order.paymentMethod === "cod"
   );
 

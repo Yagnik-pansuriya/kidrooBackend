@@ -8,6 +8,11 @@ export interface IOrderItem {
   productName: string;
   skuCode?: string;
   image?: string;
+  weight?: number;
+  length?: number;
+  breadth?: number;
+  width?: number;
+  height?: number;
 }
 
 export interface IShippingAddress {
@@ -70,6 +75,11 @@ const orderItemSchema = new Schema<IOrderItem>({
   productName: { type: String, required: true },
   skuCode: { type: String },
   image: { type: String },
+  weight: { type: Number, default: 0.5 },
+  length: { type: Number, default: 15 },
+  breadth: { type: Number, default: 10 },
+  width: { type: Number, default: 10 },
+  height: { type: Number, default: 10 },
 });
 
 const shippingAddressSchema = new Schema<IShippingAddress>({

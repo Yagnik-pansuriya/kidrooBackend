@@ -23,6 +23,11 @@ export interface IProduct {
   youtubeUrl?: string;
   youtubeUrl2?: string;
   position?: number;
+  weight: number;
+  length: number;
+  breadth: number;
+  width: number;
+  height: number;
   skuCode?: string;
   skills?: mongoose.Schema.Types.ObjectId[];
   hasWarranty?: boolean;
@@ -142,6 +147,32 @@ const productSchema = new mongoose.Schema<IProduct>(
     position: {
       type: Number,
       default: 0,
+    },
+    weight: {
+      type: Number,
+      required: true,
+      default: 0.5,
+      min: 0.01,
+    },
+    length: {
+      type: Number,
+      default: 15,
+      min: 0.1,
+    },
+    breadth: {
+      type: Number,
+      default: 10,
+      min: 0.1,
+    },
+    width: {
+      type: Number,
+      default: 10,
+      min: 0.1,
+    },
+    height: {
+      type: Number,
+      default: 10,
+      min: 0.1,
     },
     skuCode: {
       type: String,

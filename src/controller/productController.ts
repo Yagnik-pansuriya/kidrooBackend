@@ -161,6 +161,11 @@ export const createProduct = asyncHandler(
       seoTitle: rawSeoTitleCreate,
       seoDescription: rawSeoDescriptionCreate,
       specifications: rawSpecificationsCreate,
+      weight: rawWeightCreate,
+      length: rawLengthCreate,
+      breadth: rawBreadthCreate,
+      width: rawWidthCreate,
+      height: rawHeightCreate,
     } = req.body;
 
     // Normalize: legacy single 'category' → array; new 'categories' array → use directly
@@ -292,6 +297,11 @@ export const createProduct = asyncHandler(
       ageRange: resolvedAgeRange,
       tags,
       isActive: isActive === "true" || isActive === true,
+      weight: Math.max(0.01, safeNum(rawWeightCreate) || 0.5),
+      length: safeNum(rawLengthCreate) || 15,
+      breadth: safeNum(rawBreadthCreate) || 10,
+      width: safeNum(rawWidthCreate) || 10,
+      height: safeNum(rawHeightCreate) || 10,
       youtubeUrl: youtubeUrl || '',
       youtubeUrl2: youtubeUrl2 || '',
       skuCode: skuCode || '',
@@ -369,6 +379,11 @@ export const updateProduct = asyncHandler(
       seoTitle: rawSeoTitleUpdate,
       seoDescription: rawSeoDescriptionUpdate,
       specifications: rawSpecificationsUpdate,
+      weight: rawWeightUpdate,
+      length: rawLengthUpdate,
+      breadth: rawBreadthUpdate,
+      width: rawWidthUpdate,
+      height: rawHeightUpdate,
       youtubeUrl2,
       skuCode,
     } = req.body;
@@ -509,6 +524,11 @@ export const updateProduct = asyncHandler(
     if (bestSeller !== undefined) updateData.bestSeller = bestSeller === "true" || bestSeller === true;
     if (isActive !== undefined) updateData.isActive = isActive === "true" || isActive === true;
     if (stock !== undefined) updateData.stock = safeNum(stock);
+    if (rawWeightUpdate !== undefined) updateData.weight = Math.max(0.01, safeNum(rawWeightUpdate) || 0.5);
+    if (rawLengthUpdate !== undefined) updateData.length = safeNum(rawLengthUpdate) || 15;
+    if (rawBreadthUpdate !== undefined) updateData.breadth = safeNum(rawBreadthUpdate) || 10;
+    if (rawWidthUpdate !== undefined) updateData.width = safeNum(rawWidthUpdate) || 10;
+    if (rawHeightUpdate !== undefined) updateData.height = safeNum(rawHeightUpdate) || 10;
 
     if (hasWarranty !== undefined) updateData.hasWarranty = hasWarranty === "true" || hasWarranty === true;
     if (warrantyPeriod !== undefined) updateData.warrantyPeriod = safeNum(warrantyPeriod);

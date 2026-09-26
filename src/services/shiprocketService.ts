@@ -184,13 +184,14 @@ class ShiprocketService {
     total_discount?: number;
     weight: number;
     length: number;
+    breadth: number;
     width: number;
     height: number;
   }): Promise<{ shiprocketOrderId: string; shipmentId: string } | null> {
     try {
       const payload = {
         ...orderData,
-        pickup_location: orderData.pickup_location || "Primary Warehouse",
+        pickup_location: orderData.pickup_location || "warehouse",
       };
 
       const response = await this.request("/orders/create/adhoc", {
