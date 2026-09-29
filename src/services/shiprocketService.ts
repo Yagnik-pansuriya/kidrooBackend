@@ -227,7 +227,12 @@ class ShiprocketService {
         body: JSON.stringify(body),
       });
 
-      if (response && response.status === 200 && response.response?.data) {
+      if (
+        response &&
+        (response.awb_assign_status === 1 || response.status === 200) &&
+        response.response?.data?.awb_code_status === 1 &&
+        response.response?.data?.awb_code
+      ) {
         const d = response.response.data;
         return {
           awbNumber: d.awb_code,
