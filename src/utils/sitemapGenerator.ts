@@ -3,6 +3,7 @@ import fs from "fs";
 import Product from "../models/products";
 import Category from "../models/categories";
 import { slugify } from "./slugify";
+import { clearSeoRenderCache } from "../routes/seoRenderRoutes";
 
 const escapeXml = (str: string): string => {
   if (!str) return "";
@@ -33,7 +34,7 @@ export const generateSitemapXml = async (): Promise<string> => {
     .sort({ position: 1 })
     .lean();
 
-  const categories = await Category.find({})
+  const categories = await Category.find({ isActive: { $ne: false } })
     .select("catagoryName name slug updatedAt _id")
     .lean();
 
@@ -123,6 +124,8 @@ export const generateSitemapXml = async (): Promise<string> => {
  * Automatically regenerates sitemap.xml on disk in the background.
  */
 export const triggerSitemapRegeneration = async (): Promise<void> => {
+  // Product/category data changed — server-rendered SEO pages are stale too
+  clearSeoRenderCache();
   try {
     const xml = await generateSitemapXml();
     const possiblePaths = [

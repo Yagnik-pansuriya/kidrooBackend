@@ -3,16 +3,29 @@ import rateLimit from "express-rate-limit";
 const isProduction = process.env.NODE_ENV === "production";
 const isServerless = process.env.VERCEL === "1";
 
-export const limiter = rateLimit({
+const isReadRequest = (method: string) => method === "GET" || method === "HEAD";
+
+// Public catalogue reads: a single storefront page view makes several GET calls,
+// and Googlebot renders pages from a small pool of IPs — 50/15min starved it.
+const readLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: isProduction ? 1000 : 2000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => !isReadRequest(req.method) || req.path === "/health",
+  message: "Too many requests from this IP, please try again later.",
+});
+
+const writeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: isServerless ? 200 : isProduction ? 50 : 100,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => {
-    return req.path === "/health";
-  },
+  skip: (req) => isReadRequest(req.method) || req.path === "/health",
   message: "Too many requests from this IP, please try again later.",
 });
+
+export const limiter = [readLimiter, writeLimiter];
 
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

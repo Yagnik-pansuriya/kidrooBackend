@@ -44,7 +44,7 @@ router.get("/", async (req: Request, res: Response) => {
       .sort({ position: 1 })
       .lean();
 
-    const categories = await Category.find({})
+    const categories = await Category.find({ isActive: { $ne: false } })
       .select("catagoryName name slug updatedAt _id")
       .lean();
 

@@ -13,11 +13,17 @@ import uploadRoutes from "./routes/uploadRoutes";
 import swaggerRoutes from "./routes/swaggerRoutes";
 import indexRoutes from "./routes/index";
 import sitemapRoutes from "./routes/sitemapRoutes";
+import seoRenderRoutes from "./routes/seoRenderRoutes";
 
 const app = express();
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
+
+// Server-rendered HTML pages for crawlers (Nginx forwards page requests here).
+// Mounted before helmet/CORS/rate limiting: the API's strict CSP would break
+// the SPA, and search engine crawlers must not be rate limited on HTML pages.
+app.use("/seo-render", seoRenderRoutes);
 
 // **** Environment-based configuration ****
 const isProduction = process.env.NODE_ENV === "production";
