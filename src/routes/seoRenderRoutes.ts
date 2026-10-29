@@ -5,6 +5,7 @@ import mongoose from "mongoose";
 import Product from "../models/products";
 import Category from "../models/categories";
 import Offer from "../models/offers";
+import Coupon from "../models/coupon";
 
 /**
  * Server-side SEO rendering for the React SPA.
@@ -369,12 +370,110 @@ ${productListHtml(products)}`,
   };
 };
 
+// ── Offers SEO ──────────────────────────────────────────────────────────────
+// Mirrors buildOfferSeo() in kidrooToys/frontend/src/utils/offerSeo.js —
+// the client-rendered tags and these must match, so change both together.
+
+const OFFERS_FALLBACK_TITLE = "Toy Offers & Deals - Discounts on Kids Toys | Kidroo Toys";
+const OFFERS_FALLBACK_DESCRIPTION =
+  "Today's best deals on kids toys at Kidroo - discounts on baby rattle sets, puzzles, board games and gifts. Limited-time toy offers in India.";
+
+const plainText = (text: unknown): string => stripHtml(String(text || "")).replace(/\s+/g, " ").trim();
+
+const shortDate = (value: Date | string): string =>
+  new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
+
+const absoluteUrl = (url?: string): string => {
+  if (!url) return `${SITE_URL}/offers`;
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${SITE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+};
+
+const offerImage = (offer: any): string | undefined => {
+  const first = offer?.images?.[0];
+  return typeof first === "string" ? first : first?.url;
+};
+
+const couponLabel = (c: any): string =>
+  c.discountType === "percentage" ? `${c.discountValue}% off` : `₹${c.discountValue} off`;
+
+const buildOfferSeo = (offers: any[], coupons: any[]) => {
+  const headline = offers[0];
+  const coupon = coupons[0];
+
+  if (!headline && !coupon) {
+    return { title: OFFERS_FALLBACK_TITLE, description: OFFERS_FALLBACK_DESCRIPTION, image: undefined, catalog: null };
+  }
+
+  const lead = headline ? plainText(headline.title) : `Coupon ${coupon.code}: ${couponLabel(coupon)}`;
+  const title = `${truncate(`${lead} - Toy Offers & Deals`, 55)} | Kidroo Toys`;
+
+  const parts: string[] = [];
+  if (headline) {
+    parts.push(`${plainText(headline.title)}${headline.subtitle ? ` - ${plainText(headline.subtitle)}` : ""}.`);
+    if (offers.length > 1) parts.push(`Plus ${offers.length - 1} more deal${offers.length > 2 ? "s" : ""}.`);
+  }
+  if (coupon) {
+    parts.push(`Use code ${coupon.code} for ${couponLabel(coupon)}${coupon.minOrderAmount > 0 ? ` on orders over ₹${coupon.minOrderAmount}` : ""}.`);
+  }
+  const endsAt = headline?.validity?.to || coupon?.validTo;
+  if (endsAt) parts.push(`Valid till ${shortDate(endsAt)}.`);
+  parts.push("Shop kids toys at Kidroo.");
+  const description = truncate(parts.join(" "), 160);
+
+  const catalog = {
+    "@type": "OfferCatalog",
+    "@id": `${SITE_URL}/offers#catalog`,
+    name: "Kidroo Toys Offers & Deals",
+    url: `${SITE_URL}/offers`,
+    itemListElement: [
+      ...offers.map((o) => ({
+        "@type": "Offer",
+        name: plainText(o.title),
+        ...(o.subtitle || o.description ? { description: truncate(plainText(o.description || o.subtitle), 300) } : {}),
+        url: absoluteUrl(o.targetUrl),
+        ...(offerImage(o) ? { image: offerImage(o) } : {}),
+        ...(o.validity?.from ? { validFrom: new Date(o.validity.from).toISOString() } : {}),
+        ...(o.validity?.to ? { validThrough: new Date(o.validity.to).toISOString() } : {}),
+        offeredBy: { "@id": `${SITE_URL}/#organization` },
+      })),
+      ...coupons.map((c) => ({
+        "@type": "Offer",
+        name: `${couponLabel(c)} with coupon ${c.code}`,
+        ...(c.description ? { description: truncate(plainText(c.description), 300) } : {}),
+        category: "Coupon",
+        url: `${SITE_URL}/offers`,
+        ...(c.validFrom ? { validFrom: new Date(c.validFrom).toISOString() } : {}),
+        ...(c.validTo ? { validThrough: new Date(c.validTo).toISOString() } : {}),
+        ...(c.minOrderAmount > 0
+          ? { eligibleTransactionVolume: { "@type": "PriceSpecification", minPrice: c.minOrderAmount, priceCurrency: "INR" } }
+          : {}),
+        offeredBy: { "@id": `${SITE_URL}/#organization` },
+      })),
+    ],
+  };
+
+  return { title, description, image: headline ? offerImage(headline) : undefined, catalog };
+};
+
 const buildOffers = async (): Promise<SeoPage> => {
   const now = new Date();
-  const [offers, deals] = await Promise.all([
+  // Same filters and order as offerService.getActiveOffers / couponService.getPublicCoupons
+  const [offers, coupons, deals] = await Promise.all([
     Offer.find({ isActive: true, "validity.from": { $lte: now }, "validity.to": { $gte: now } })
-      .select("title subtitle description images")
-      .sort({ "placement.position": 1 })
+      .select("title subtitle description images targetUrl validity")
+      .sort({ "placement.position": 1, createdAt: -1 })
+      .limit(20)
+      .lean(),
+    Coupon.find({
+      visibility: "public",
+      isActive: true,
+      validFrom: { $lte: now },
+      validTo: { $gte: now },
+      $expr: { $lt: ["$usedCount", "$usageLimit"] },
+    })
+      .select("code description discountType discountValue minOrderAmount validFrom validTo")
+      .sort({ createdAt: -1 })
       .limit(20)
       .lean(),
     Product.find({ isActive: true, $expr: { $gt: ["$originalPrice", "$price"] } })
@@ -383,38 +482,59 @@ const buildOffers = async (): Promise<SeoPage> => {
       .limit(60)
       .lean(),
   ]);
-  const maxDiscount = deals.reduce(
-    (max: number, p: any) => Math.max(max, Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)),
-    0,
-  );
-  // Keep in sync with Offers.jsx <SEO>
-  const title = "Toy Offers & Deals - Discounts on Kids Toys | Kidroo Toys";
-  const description = truncate(
-    `Today's best deals on kids toys at Kidroo${maxDiscount ? ` - save up to ${maxDiscount}%` : ""} on baby rattle sets, puzzles, board games and gifts. Limited-time toy offers in India.`,
-    160,
-  );
+  const { title, description, image, catalog } = buildOfferSeo(offers, coupons);
+  const keywords = [
+    "toy offers", "kids toys sale", "toy deals india", "discount toys online", "kidroo offers",
+    ...offers.map((o: any) => String(o.title || "").toLowerCase()).filter(Boolean),
+    ...coupons.map((c: any) => `kidroo coupon ${c.code}`.toLowerCase()),
+  ].slice(0, 15).join(", ");
   const crumbs = [
     { name: "Home", url: `${SITE_URL}/` },
     { name: "Offers & Deals", url: `${SITE_URL}/offers` },
   ];
   const offersHtml = offers.length
     ? `<h2>Current Offers</h2><ul>${offers
-        .map((o: any) => `<li><strong>${escapeHtml(o.title)}</strong>${o.subtitle ? ` - ${escapeHtml(o.subtitle)}` : ""}${o.description ? `<p>${escapeHtml(truncate(stripHtml(o.description), 240))}</p>` : ""}</li>`)
+        .map((o: any) => {
+          const link = o.targetUrl && !/^https?:/i.test(o.targetUrl) ? o.targetUrl : "/shop";
+          const img = offerImage(o);
+          return `<li><a href="${escapeHtml(link)}"><strong>${escapeHtml(o.title)}</strong></a>${o.subtitle ? ` - ${escapeHtml(o.subtitle)}` : ""}${
+            img ? `<br><img src="${escapeHtml(img)}" alt="${escapeHtml(o.images?.[0]?.altText || o.title)}" loading="lazy" style="max-width:100%;height:auto">` : ""
+          }${o.description ? `<p>${escapeHtml(truncate(stripHtml(o.description), 240))}</p>` : ""}${
+            o.validity?.to ? `<p>Valid till ${escapeHtml(shortDate(o.validity.to))}</p>` : ""
+          }</li>`;
+        })
+        .join("")}</ul>`
+    : "";
+  const couponsHtml = coupons.length
+    ? `<h2>Coupon Codes</h2><ul>${coupons
+        .map((c: any) => `<li><strong>${escapeHtml(c.code)}</strong> - ${escapeHtml(couponLabel(c))}${
+          c.minOrderAmount > 0 ? ` on orders over ${formatPrice(c.minOrderAmount)}` : ""
+        }${c.description ? `. ${escapeHtml(truncate(plainText(c.description), 200))}` : ""} (valid till ${escapeHtml(shortDate(c.validTo))})</li>`)
         .join("")}</ul>`
     : "";
   return {
     status: 200,
     title,
     description,
+    keywords,
     canonical: `${SITE_URL}/offers`,
-    image: (offers[0] as any)?.images?.[0]?.url,
+    image,
     jsonLd: [
-      { "@type": "CollectionPage", url: `${SITE_URL}/offers`, name: title, description, isPartOf: { "@id": `${SITE_URL}/#website` }, mainEntity: itemListLd(deals) },
+      {
+        "@type": "CollectionPage",
+        url: `${SITE_URL}/offers`,
+        name: title,
+        description,
+        isPartOf: { "@id": `${SITE_URL}/#website` },
+        mainEntity: catalog ? { "@id": catalog["@id"] } : itemListLd(deals),
+      },
       breadcrumbLd(crumbs),
+      ...(catalog ? [catalog, { ...itemListLd(deals), name: "Toys on Sale" }] : []),
     ],
     bodyHtml: `${breadcrumbHtml(crumbs)}<h1>Toy Offers &amp; Deals</h1>
 <p>Grab limited-time discounts on premium kids toys at Kidroo.</p>
 ${offersHtml}
+${couponsHtml}
 <h2>Toys on Sale</h2>
 ${productListHtml(deals)}`,
   };
