@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import Customer from "../models/customer";
 
@@ -13,6 +14,9 @@ import Customer from "../models/customer";
  *   MERCURE_PUBLISHER_JWT_KEY   must match the hub's publisher key
  *   MERCURE_SUBSCRIBER_JWT_KEY  must match the hub's subscriber key
  *   MERCURE_TOPIC_BASE          topic namespace (default https://kidroo.in)
+ *   MERCURE_ISSUER              token "iss"; must match the hub's issuer block (default: topic base)
+ *   MERCURE_AUDIENCE            token "aud"; must match the hub's resource_identifier
+ *                               (default: <topic base>/.well-known/mercure)
  *
  * Publishing is fire-and-forget: a missing or down hub never breaks checkout.
  */
@@ -29,6 +33,32 @@ export const REALTIME_TOPICS = {
 const PUBLISH_TIMEOUT_MS = 3000;
 const SUBSCRIBER_TOKEN_TTL = "12h";
 
+// Mercure 1.x only accepts RFC 9068 access tokens: "at+jwt" type, the trusted
+// issuer, the hub's audience, and grants in "authorization_details"
+const signHubToken = (action: "publish" | "subscribe", topics: string[], key: string, subject: string, expiresIn: string) =>
+  jwt.sign(
+    {
+      client_id: "kidroo-backend",
+      authorization_details: [
+        {
+          type: "https://mercure.rocks/authorization-detail",
+          actions: [action],
+          topics: topics.map((match) => ({ match })),
+        },
+      ],
+    },
+    key,
+    {
+      algorithm: "HS256",
+      header: { alg: "HS256", typ: "at+jwt" },
+      expiresIn,
+      issuer: process.env.MERCURE_ISSUER || TOPIC_BASE,
+      audience: process.env.MERCURE_AUDIENCE || `${TOPIC_BASE}/.well-known/mercure`,
+      subject,
+      jwtid: crypto.randomUUID(),
+    } as jwt.SignOptions,
+  );
+
 const hubUrl = () => process.env.MERCURE_HUB_URL || "";
 
 export const isRealtimeEnabled = () =>
@@ -43,10 +73,12 @@ const getPublisherToken = (): string => {
   const now = Date.now();
   if (publisherToken && publisherToken.expiresAt - 60_000 > now) return publisherToken.value;
 
-  const value = jwt.sign(
-    { mercure: { publish: Object.values(REALTIME_TOPICS) } },
+  const value = signHubToken(
+    "publish",
+    Object.values(REALTIME_TOPICS),
     process.env.MERCURE_PUBLISHER_JWT_KEY as string,
-    { algorithm: "HS256", expiresIn: "1h" },
+    "kidroo-backend",
+    "1h",
   );
   publisherToken = { value, expiresAt: now + 60 * 60 * 1000 };
   return value;
@@ -56,15 +88,17 @@ const getPublisherToken = (): string => {
  * Subscriber JWT for an admin-panel user. Carts are admin-only (same as the
  * Carts page); every staff role gets orders.
  */
-export const createSubscriberToken = (role: string) => {
+export const createSubscriberToken = (userId: string, role: string) => {
   const topics = role === "admin"
     ? [REALTIME_TOPICS.orders, REALTIME_TOPICS.carts]
     : [REALTIME_TOPICS.orders];
 
-  const token = jwt.sign(
-    { mercure: { subscribe: topics } },
+  const token = signHubToken(
+    "subscribe",
+    topics,
     process.env.MERCURE_SUBSCRIBER_JWT_KEY as string,
-    { algorithm: "HS256", expiresIn: SUBSCRIBER_TOKEN_TTL },
+    userId,
+    SUBSCRIBER_TOKEN_TTL,
   );
 
   return {

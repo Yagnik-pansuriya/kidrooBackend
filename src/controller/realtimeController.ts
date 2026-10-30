@@ -13,6 +13,6 @@ export const getRealtimeToken = asyncHandler(async (req: Request, res: Response)
     throw new AppError("Live notifications are not configured", 503);
   }
 
-  const role = (req as any).user?.role;
-  return sendSuccessResponse(res, 200, "Realtime token issued", createSubscriberToken(role));
+  const { id, role } = (req as any).user || {};
+  return sendSuccessResponse(res, 200, "Realtime token issued", createSubscriberToken(String(id), role));
 });
