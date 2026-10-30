@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import Offer from "../models/offers";
 import Customer from "../models/customer";
-import SmsCampaign from "../models/smsCampaign";
+import SmsCampaign, { ISmsCampaign } from "../models/smsCampaign";
 import { sendSuccessResponse } from "../utils/apiResponse";
 import { asyncHandler } from "../utils/asyncHandler";
 import AppError from "../utils/appError";
@@ -20,7 +20,11 @@ import {
 // kidroo_offer_alert / kidroo_cart_reminder — see msg91WhatsappService.ts)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const OFFER_GROUPS = ["all", "repeat", "high_value", "new", "at_risk"];
+type OfferGroup = Exclude<ISmsCampaign["targetGroup"], "custom">;
+const OFFER_GROUPS: OfferGroup[] = ["all", "repeat", "high_value", "new", "at_risk"];
+
+const parseGroup = (raw: unknown): OfferGroup =>
+  OFFER_GROUPS.find((g) => g === String(raw)) ?? "all";
 const CART_RESEND_GAP_MS = 10 * 60 * 1000; // stops double-clicks / accidental spam
 const STORE_HOSTS = ["kidroo.in", "www.kidroo.in"];
 
@@ -93,7 +97,7 @@ const offerProblems = (offer: any, content: OfferAlertContent) => {
 // ─────────────────────────────────────────────────────────────────────────────
 export const getOfferWhatsAppInfo = asyncHandler(async (req: Request, res: Response) => {
   const offer = await loadSendableOffer(req.params.id);
-  const targetGroup = OFFER_GROUPS.includes(String(req.query.targetGroup)) ? String(req.query.targetGroup) : "all";
+  const targetGroup = parseGroup(req.query.targetGroup);
 
   const content = buildOfferContent(offer);
   const [recipients, lastCampaign] = await Promise.all([
@@ -140,7 +144,7 @@ export const sendOfferOnWhatsApp = asyncHandler(async (req: Request, res: Respon
   }
 
   // ── Real send ──────────────────────────────────────────────────────────────
-  const targetGroup = OFFER_GROUPS.includes(String(rawGroup)) ? String(rawGroup) : "all";
+  const targetGroup = parseGroup(rawGroup);
 
   const inFlight = await SmsCampaign.exists({ kind: "offer", offer: offer._id, status: "sending" });
   if (inFlight) throw new AppError("This offer is already being sent", 409);
