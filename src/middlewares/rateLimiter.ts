@@ -5,6 +5,10 @@ const isServerless = process.env.VERCEL === "1";
 
 const isReadRequest = (method: string) => method === "GET" || method === "HEAD";
 
+// Offer view/click beacons fire while browsing; they have their own limiter so they
+// never eat into the write budget a shopper needs for login, cart and checkout.
+const isOfferTracking = (path: string) => path.endsWith("/offers/track");
+
 // Public catalogue reads: a single storefront page view makes several GET calls,
 // and Googlebot renders pages from a small pool of IPs — 50/15min starved it.
 const readLimiter = rateLimit({
@@ -21,7 +25,7 @@ const writeLimiter = rateLimit({
   max: isServerless ? 200 : isProduction ? 50 : 100,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => isReadRequest(req.method) || req.path === "/health",
+  skip: (req) => isReadRequest(req.method) || req.path === "/health" || isOfferTracking(req.path),
   message: "Too many requests from this IP, please try again later.",
 });
 
@@ -42,4 +46,13 @@ export const otpLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: "Too many OTP requests. Please wait before requesting another.",
+});
+
+/** Offer impression / click beacons (batched client-side, so this is generous) */
+export const offerTrackLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: "Too many tracking requests.",
 });

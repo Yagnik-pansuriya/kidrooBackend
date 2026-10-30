@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import Coupon from "../models/coupon";
 import Offer from "../models/offers";
+import OfferDailyStat from "../models/offerDailyStat";
+import { STORE_TZ, istDayKey, parseOfferDate } from "../utils/istDate";
 import Order from "../models/order";
 import Product from "../models/products";
 import Customer from "../models/customer";
@@ -333,24 +335,48 @@ export const getAdminDashboardAnalytics = asyncHandler(async (req: Request, res:
   });
 });
 
+const round2 = (n: any) => Math.round((Number(n) || 0) * 100) / 100;
+
+/** Chart x-axis buckets in store time (IST), oldest first */
+const buildTrendBuckets = (timeframe: string, now: Date) => {
+  const buckets: { key: string; label: string }[] = [];
+  if (timeframe === "yearly") {
+    const [y, m] = istDayKey(now).split("-").map(Number);
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(Date.UTC(y, m - 1 - i, 1));
+      buckets.push({
+        key: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`,
+        label: `${d.toLocaleDateString("en-IN", { month: "short", timeZone: "UTC" })} '${String(d.getUTCFullYear()).slice(2)}`,
+      });
+    }
+    return buckets;
+  }
+  const days = timeframe === "weekly" ? 7 : 30;
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 86400000);
+    buckets.push({
+      key: istDayKey(d),
+      label: d.toLocaleDateString("en-IN", timeframe === "weekly"
+        ? { weekday: "short", day: "numeric", timeZone: STORE_TZ }
+        : { day: "numeric", month: "short", timeZone: STORE_TZ }),
+    });
+  }
+  return buckets;
+};
+
 /**
  * Get Offer & Coupon Analysis for Admin Offers Page
  * GET /api/coupons/analytics?timeframe=weekly|monthly|yearly
  */
 export const getOfferAndCouponAnalytics = asyncHandler(async (req: Request, res: Response) => {
-  const timeframe = (req.query.timeframe as string) || "monthly";
+  const requested = req.query.timeframe as string;
+  const timeframe = requested === "weekly" || requested === "yearly" ? requested : "monthly";
   const now = new Date();
 
-  let startDate = new Date();
-  if (timeframe === "weekly") {
-    startDate.setDate(now.getDate() - 7);
-  } else if (timeframe === "yearly") {
-    startDate.setFullYear(now.getFullYear() - 1);
-  } else {
-    // Default: monthly (30 days)
-    startDate.setDate(now.getDate() - 30);
-  }
-  startDate.setHours(0, 0, 0, 0);
+  // Chart buckets in store time: last 7 / 30 days, or last 12 months
+  const buckets = buildTrendBuckets(timeframe, now);
+  const startDate = parseOfferDate(timeframe === "yearly" ? `${buckets[0].key}-01` : buckets[0].key, "start")!;
+  const bucketFormat = timeframe === "yearly" ? "%Y-%m" : "%Y-%m-%d";
 
   const baseFilter: any = {
     createdAt: { $gte: startDate },
@@ -492,134 +518,135 @@ export const getOfferAndCouponAnalytics = asyncHandler(async (req: Request, res:
   // Product with most coupon applications
   const topCouponProduct = productCouponBreakdown.length > 0 ? productCouponBreakdown[0] : null;
 
-  // 4. Time-series Trend Data for D3 Chart (Daily / Monthly)
-  let trendData: { label: string; dateStr: string; couponUses: number; discountGiven: number; revenue: number }[] = [];
+  // 4. Time-series coupon trend
+  const rawCouponTrend = await Order.aggregate([
+    { $match: couponOrdersFilter },
+    {
+      $group: {
+        _id: { $dateToString: { format: bucketFormat, date: "$createdAt", timezone: STORE_TZ } },
+        couponUses: { $sum: 1 },
+        discountGiven: { $sum: "$couponDiscount" },
+        revenue: { $sum: "$netAmount" },
+      },
+    },
+  ]);
+  const couponTrendMap = new Map(rawCouponTrend.map((t) => [t._id, t]));
+  const trendData = buckets.map(({ key, label }) => {
+    const found: any = couponTrendMap.get(key) || {};
+    return {
+      label,
+      dateStr: key,
+      couponUses: found.couponUses || 0,
+      discountGiven: round2(found.discountGiven),
+      revenue: round2(found.revenue),
+    };
+  });
 
-  if (timeframe === "yearly") {
-    const rawTrend = await Order.aggregate([
-      { $match: couponOrdersFilter },
+  // 5. Offer analysis — real storefront views/clicks plus orders placed after clicking an offer
+  const startDay = buckets[0].key.length === 7 ? `${buckets[0].key}-01` : buckets[0].key;
+  const [allOffers, offerEventTotals, offerEventTrend, offerOrderTotals, offerOrderTrend] = await Promise.all([
+    Offer.find({}).select("title subtitle displayType placement isActive validity images stats").lean(),
+    OfferDailyStat.aggregate([
+      { $match: { day: { $gte: startDay } } },
+      { $group: { _id: "$offer", impressions: { $sum: "$impressions" }, clicks: { $sum: "$clicks" } } },
+    ]),
+    OfferDailyStat.aggregate([
+      { $match: { day: { $gte: startDay } } },
       {
         $group: {
-          _id: {
-            year: { $year: "$createdAt" },
-            month: { $month: "$createdAt" },
-          },
-          couponUses: { $sum: 1 },
-          discountGiven: { $sum: "$couponDiscount" },
+          _id: timeframe === "yearly" ? { $substrBytes: ["$day", 0, 7] } : "$day",
+          impressions: { $sum: "$impressions" },
+          clicks: { $sum: "$clicks" },
+        },
+      },
+    ]),
+    Order.aggregate([
+      { $match: { ...baseFilter, sourceOffer: { $exists: true, $ne: null } } },
+      { $group: { _id: "$sourceOffer", orders: { $sum: 1 }, revenue: { $sum: "$netAmount" } } },
+    ]),
+    Order.aggregate([
+      { $match: { ...baseFilter, sourceOffer: { $exists: true, $ne: null } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: bucketFormat, date: "$createdAt", timezone: STORE_TZ } },
+          orders: { $sum: 1 },
           revenue: { $sum: "$netAmount" },
         },
       },
-      { $sort: { "_id.year": 1, "_id.month": 1 } },
-    ]);
+    ]),
+  ]);
 
-    const monthMap = new Map();
-    rawTrend.forEach((t) => {
-      const key = `${t._id.year}-${String(t._id.month).padStart(2, "0")}`;
-      monthMap.set(key, {
-        couponUses: t.couponUses,
-        discountGiven: Math.round(t.discountGiven * 100) / 100,
-        revenue: Math.round(t.revenue * 100) / 100,
-      });
-    });
+  const eventsByOffer = new Map(offerEventTotals.map((e) => [String(e._id), e]));
+  const ordersByOffer = new Map(offerOrderTotals.map((o) => [String(o._id), o]));
 
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, "0");
-      const key = `${year}-${month}`;
-      const label = d.toLocaleString("default", { month: "short" });
-
-      const found = monthMap.get(key) || { couponUses: 0, discountGiven: 0, revenue: 0 };
-      trendData.push({
-        label,
-        dateStr: key,
-        couponUses: found.couponUses,
-        discountGiven: found.discountGiven,
-        revenue: found.revenue,
-      });
-    }
-  } else {
-    const daysCount = timeframe === "weekly" ? 7 : 30;
-    const rawTrend = await Order.aggregate([
-      { $match: couponOrdersFilter },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" },
-          },
-          couponUses: { $sum: 1 },
-          discountGiven: { $sum: "$couponDiscount" },
-          revenue: { $sum: "$netAmount" },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]);
-
-    const dayMap = new Map();
-    rawTrend.forEach((t) => {
-      dayMap.set(t._id, {
-        couponUses: t.couponUses,
-        discountGiven: Math.round(t.discountGiven * 100) / 100,
-        revenue: Math.round(t.revenue * 100) / 100,
-      });
-    });
-
-    for (let i = daysCount - 1; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(now.getDate() - i);
-      const dateStr = d.toISOString().split("T")[0];
-      const label = timeframe === "weekly"
-        ? d.toLocaleDateString("en-US", { weekday: "short" })
-        : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-
-      const found = dayMap.get(dateStr) || { couponUses: 0, discountGiven: 0, revenue: 0 };
-      trendData.push({
-        label,
-        dateStr,
-        couponUses: found.couponUses,
-        discountGiven: found.discountGiven,
-        revenue: found.revenue,
-      });
-    }
-  }
-
-  // 5. Offer Analysis ("which offer is used most")
-  const allOffers = await Offer.find({}).lean();
-  
-  // Aggregate total orders in timeframe to calculate offer conversion metrics
-  const totalPeriodOrders = await Order.countDocuments(baseFilter);
-
-  const offerPerformanceList = allOffers.map((offer, index) => {
-    // Generate calculated metrics based on active status, display position, and period orders
-    const isCurrentlyValid = offer.isActive && new Date(offer.validity.to) >= now;
-    const baseWeight = offer.placement.page === "home" ? 1.5 : 1.0;
-    const estimatedUses = offer.isActive
-      ? Math.max(12, Math.round((totalPeriodOrders * 0.45 * baseWeight) / (index + 1)))
-      : Math.round(totalPeriodOrders * 0.05);
-
-    const estimatedRevenue = estimatedUses * 240;
-
+  const offerPerformanceList = allOffers.map((offer: any) => {
+    const ev: any = eventsByOffer.get(String(offer._id)) || {};
+    const ord: any = ordersByOffer.get(String(offer._id)) || {};
+    const impressions = ev.impressions || 0;
+    const clicks = ev.clicks || 0;
+    const orders = ord.orders || 0;
+    const from = offer.validity?.from ? new Date(offer.validity.from) : null;
+    const to = offer.validity?.to ? new Date(offer.validity.to) : null;
+    const status = to && to < now ? "expired" : !offer.isActive ? "inactive" : from && from > now ? "scheduled" : "live";
     return {
       _id: offer._id,
       title: offer.title,
       subtitle: offer.subtitle || "",
+      image: offer.images?.[0]?.url || "",
       displayType: offer.displayType,
-      page: offer.placement.page,
-      section: offer.placement.section || "main",
-      position: offer.placement.position || 0,
+      page: offer.placement?.page,
+      section: offer.placement?.section || "main",
+      position: offer.placement?.position || 0,
       isActive: offer.isActive,
-      isValid: isCurrentlyValid,
-      validFrom: offer.validity.from,
-      validTo: offer.validity.to,
-      estimatedUses,
-      estimatedRevenue,
+      status,
+      validFrom: offer.validity?.from,
+      validTo: offer.validity?.to,
+      impressions,
+      clicks,
+      ctr: impressions ? round2((clicks / impressions) * 100) : 0,
+      orders,
+      revenue: round2(ord.revenue),
+      conversionRate: clicks ? round2((orders / clicks) * 100) : 0,
+      lifetimeImpressions: offer.stats?.impressions || 0,
+      lifetimeClicks: offer.stats?.clicks || 0,
     };
   });
 
-  // Sort offers by estimated uses descending
-  offerPerformanceList.sort((a, b) => b.estimatedUses - a.estimatedUses);
+  // Rank by what the offer actually drove: orders, then clicks, then views
+  offerPerformanceList.sort(
+    (a, b) => b.orders - a.orders || b.clicks - a.clicks || b.impressions - a.impressions
+  );
 
-  const topOffer = offerPerformanceList.length > 0 ? offerPerformanceList[0] : null;
+  const topOffer = offerPerformanceList.find((o) => o.clicks > 0 || o.impressions > 0) || null;
+
+  const offerEventTrendMap = new Map(offerEventTrend.map((t) => [t._id, t]));
+  const offerOrderTrendMap = new Map(offerOrderTrend.map((t) => [t._id, t]));
+  const offerTrendData = buckets.map(({ key, label }) => {
+    const ev: any = offerEventTrendMap.get(key) || {};
+    const ord: any = offerOrderTrendMap.get(key) || {};
+    return {
+      label,
+      dateStr: key,
+      impressions: ev.impressions || 0,
+      clicks: ev.clicks || 0,
+      orders: ord.orders || 0,
+      revenue: round2(ord.revenue),
+    };
+  });
+
+  const offerTotals = offerPerformanceList.reduce(
+    (acc, o) => {
+      acc.impressions += o.impressions;
+      acc.clicks += o.clicks;
+      acc.orders += o.orders;
+      acc.revenue += o.revenue;
+      acc[o.status] = (acc[o.status] || 0) + 1;
+      return acc;
+    },
+    { impressions: 0, clicks: 0, orders: 0, revenue: 0, live: 0, scheduled: 0, expired: 0, inactive: 0 } as Record<string, number>
+  );
+  offerTotals.revenue = round2(offerTotals.revenue);
+  offerTotals.ctr = offerTotals.impressions ? round2((offerTotals.clicks / offerTotals.impressions) * 100) : 0;
 
   return sendSuccessResponse(res, 200, "Offer & Coupon analytics fetched successfully", {
     timeframe,
@@ -642,6 +669,8 @@ export const getOfferAndCouponAnalytics = asyncHandler(async (req: Request, res:
     couponPerformanceList,
     productCouponBreakdown,
     offerPerformanceList,
+    offerTrendData,
+    offerSummary: offerTotals,
   });
 });
 

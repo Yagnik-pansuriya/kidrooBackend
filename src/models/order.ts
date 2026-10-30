@@ -37,6 +37,7 @@ export interface IOrder extends Document {
   shippingCharges: number;
   couponCode?: string;
   couponDiscount: number;
+  sourceOffer?: mongoose.Types.ObjectId; // Offer banner the customer clicked before ordering
   netAmount: number;
   
   // Payment info
@@ -103,6 +104,7 @@ const orderSchema = new Schema<IOrder>(
     shippingCharges: { type: Number, required: true, default: 0 },
     couponCode: { type: String },
     couponDiscount: { type: Number, required: true, default: 0 },
+    sourceOffer: { type: Schema.Types.ObjectId, ref: "Offer", index: true },
     netAmount: { type: Number, required: true, min: 0 },
     paymentMethod: { type: String, enum: ["online", "cod"], default: "online" },
     paymentStatus: { type: String, enum: ["Pending", "Paid", "Failed"], default: "Pending" },

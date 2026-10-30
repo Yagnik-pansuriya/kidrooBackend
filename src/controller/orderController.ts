@@ -4,6 +4,8 @@ import Order from "../models/order";
 import Product from "../models/products";
 import ProductVariant from "../models/variants";
 import Customer from "../models/customer";
+import Offer from "../models/offers";
+import mongoose from "mongoose";
 import { inventoryService } from "../services/inventoryService";
 import { couponService } from "../services/couponService";
 import { shiprocketService } from "../services/shiprocketService";
@@ -54,7 +56,7 @@ export const getShippingEstimate = asyncHandler(async (req: Request, res: Respon
  */
 export const createOrder = asyncHandler(async (req: Request, res: Response) => {
   const customerId = (req as any).customerId;
-  const { items, paymentMethod, shippingAddress, couponCode } = req.body;
+  const { items, paymentMethod, shippingAddress, couponCode, sourceOffer } = req.body;
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     throw new AppError("No products provided for order", 400);
@@ -202,6 +204,12 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
+  // Offer attribution is best-effort: an unknown id is ignored, never blocks checkout
+  const attributedOffer =
+    typeof sourceOffer === "string" && mongoose.isValidObjectId(sourceOffer) && (await Offer.exists({ _id: sourceOffer }))
+      ? sourceOffer
+      : undefined;
+
   // 6. Create the order in database
   const order = await Order.create({
     orderId,
@@ -211,6 +219,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
     shippingCharges,
     couponCode: validatedCoupon ? validatedCoupon.couponCode : undefined,
     couponDiscount,
+    sourceOffer: attributedOffer,
     netAmount,
     paymentMethod,
     paymentStatus: paymentMethod === "cod" ? "Pending" : "Pending", // Pending verification for online

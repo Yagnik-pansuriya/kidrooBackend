@@ -8,8 +8,11 @@ import {
   getOffersByPage,
   getActiveOffers,
   reorderOffers,
+  duplicateOffer,
+  trackOfferEvents,
 } from "../controller/offerController";
 import { uploadMultiple } from "../middlewares/upload.middleware";
+import { offerTrackLimiter } from "../middlewares/rateLimiter";
 import {
   authMiddleware,
   authorizationMiddleware,
@@ -19,6 +22,7 @@ import { checkPermission } from "../middlewares/permissionMiddleware";
 import {
   createOfferSchema,
   updateOfferSchema,
+  trackOfferSchema,
 } from "../utils/validators/offerValidators";
 
 const router = Router();
@@ -63,6 +67,37 @@ router.get("/page/:page", getOffersByPage);
  *         description: All active offers
  */
 router.get("/active", getActiveOffers);
+
+/**
+ * @swagger
+ * /api/offers/track:
+ *   post:
+ *     summary: Record offer impressions / clicks (Public)
+ *     description: Storefront sends batched view and click events; powers the admin offer analytics
+ *     tags:
+ *       - Offers
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               events:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     type:
+ *                       type: string
+ *                       enum: [impression, click]
+ *     responses:
+ *       200:
+ *         description: Events recorded
+ */
+router.post("/track", offerTrackLimiter, validateRequest(trackOfferSchema), trackOfferEvents);
 
 /**
  * @swagger
@@ -203,6 +238,31 @@ router.put(
   authorizationMiddleware(["admin", "moderator"]),
   checkPermission("/offers"),
   reorderOffers
+);
+
+/**
+ * @swagger
+ * /api/offers/{id}/duplicate:
+ *   post:
+ *     summary: Duplicate an offer as an inactive draft (Admin)
+ *     tags:
+ *       - Offers
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       201:
+ *         description: Offer duplicated
+ */
+router.post(
+  "/:id/duplicate",
+  authMiddleware,
+  authorizationMiddleware(["admin", "moderator"]),
+  checkPermission("/offers"),
+  duplicateOffer
 );
 
 /**
