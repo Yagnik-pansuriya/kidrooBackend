@@ -13,10 +13,12 @@ export interface ISmsCampaign extends Document {
   name: string;
   message: string;
   channel: "whatsapp";   // Always WhatsApp for now; extend for SMS later
+  kind: "broadcast" | "offer" | "cart";
+  offer?: mongoose.Types.ObjectId;
   targetGroup: "all" | "repeat" | "high_value" | "new" | "at_risk" | "custom";
   targetLabel: string;
   targetIds: mongoose.Types.ObjectId[];
-  status: "draft" | "sent" | "scheduled";
+  status: "draft" | "sending" | "sent" | "failed" | "scheduled";
   sentCount: number;
   deliveredCount: number;
   failedCount: number;
@@ -31,6 +33,9 @@ const smsCampaignSchema = new Schema<ISmsCampaign>(
     name: { type: String, required: true, trim: true },
     message: { type: String, required: true, trim: true, maxlength: 1024 },
     channel: { type: String, enum: ["whatsapp"], default: "whatsapp" },
+    // broadcast = free-text promo, offer = offer alert, cart = 1:1 cart reminder
+    kind: { type: String, enum: ["broadcast", "offer", "cart"], default: "broadcast" },
+    offer: { type: Schema.Types.ObjectId, ref: "Offer" },
     targetGroup: {
       type: String,
       enum: ["all", "repeat", "high_value", "new", "at_risk", "custom"],
@@ -40,7 +45,7 @@ const smsCampaignSchema = new Schema<ISmsCampaign>(
     targetIds: [{ type: Schema.Types.ObjectId, ref: "Customer" }],
     status: {
       type: String,
-      enum: ["draft", "sent", "scheduled"],
+      enum: ["draft", "sending", "sent", "failed", "scheduled"],
       default: "draft",
     },
     sentCount:      { type: Number, default: 0 },
@@ -53,6 +58,8 @@ const smsCampaignSchema = new Schema<ISmsCampaign>(
 
 smsCampaignSchema.index({ createdAt: -1 });
 smsCampaignSchema.index({ status: 1 });
+smsCampaignSchema.index({ offer: 1, createdAt: -1 });
+smsCampaignSchema.index({ kind: 1, targetIds: 1, createdAt: -1 });
 
 const SmsCampaign = mongoose.model<ISmsCampaign>("SmsCampaign", smsCampaignSchema);
 export default SmsCampaign;

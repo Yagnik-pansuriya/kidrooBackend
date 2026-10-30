@@ -29,12 +29,26 @@ import https from "https";
 //     Body {{1}} → Customer Name
 //     Body {{2}} → Promo Message / Offer Details
 //
+//   kidroo_offer_alert                (Marketing)
+//     Header      → Image             (the offer's first image)
+//     Body {{1}} → Customer Name
+//     Body {{2}} → Offer Title       (e.g. Diwali Toy Fest — UP TO 40% OFF)
+//     Body {{3}} → Offer Details     (subtitle / description + "Valid till …")
+//     Button URL → https://kidroo.in/{{1}}  (offer target path, e.g. shop?category=puzzles)
+//
+//   kidroo_cart_reminder              (Marketing)
+//     Body {{1}} → Customer Name
+//     Body {{2}} → Custom message written by the admin (products in the cart)
+//     Button URL → https://kidroo.in/cart   (static, no variable)
+//
 // Required env vars:
 //   MSG91_AUTH_KEY
 //   MSG91_WA_INTEGRATED_NUMBER       ← WhatsApp Business number (with 91, no +)
 //   MSG91_WA_TEMPLATE_ORDER_CONFIRMED  (default: kidroo_order_confirmed)
 //   MSG91_WA_TEMPLATE_ORDER_STATUS     (default: kidroo_order_status)
 //   MSG91_WA_TEMPLATE_PROMO_BLAST      (default: kidroo_promo_blast)
+//   MSG91_WA_TEMPLATE_OFFER            (default: kidroo_offer_alert)
+//   MSG91_WA_TEMPLATE_CART_REMINDER    (default: kidroo_cart_reminder)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const MSG91_WA_HOST = "control.msg91.com";
@@ -373,6 +387,128 @@ export async function sendWhatsAppBroadcast(
   );
 
   return { sent: totalSent, delivered: totalDelivered, failed: totalFailed };
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// OFFER ALERT + CART REMINDER
+//
+// Unlike the broadcast above these never simulate: callers check
+// isWhatsAppConfigured() first so the admin sees a real error instead of
+// made-up delivery numbers.
+// ═════════════════════════════════════════════════════════════════════════════
+
+type TemplateComponents = Record<string, { type: string; value: string }>;
+
+export const isWhatsAppConfigured = () =>
+  !!(process.env.MSG91_AUTH_KEY && process.env.MSG91_WA_INTEGRATED_NUMBER);
+
+/**
+ * Meta rejects template variables containing newlines, tabs or more than four
+ * consecutive spaces, so flatten them and cap the length.
+ */
+export function toTemplateText(value: string, maxLength = 900): string {
+  return String(value || "")
+    .replace(/\s*[\r\n\t]+\s*/g, " · ")
+    .replace(/ {2,}/g, " ")
+    .trim()
+    .slice(0, maxLength);
+}
+
+function buildPayload(
+  integratedNumber: string,
+  templateName: string,
+  recipients: { to: string; components: TemplateComponents }[]
+) {
+  return {
+    integrated_number: integratedNumber,
+    content_type: "template",
+    payload: {
+      type: "template",
+      template: {
+        name:     templateName,
+        language: { code: "en", policy: "deterministic" },
+        to_and_components: recipients.map((r) => ({ to: [r.to], components: r.components })),
+      },
+      messaging_product: "whatsapp",
+    },
+  };
+}
+
+export interface OfferAlertContent {
+  title: string;
+  details: string;
+  imageUrl: string;
+  /** Path after https://kidroo.in/ for the button, e.g. "shop?category=puzzles" */
+  buttonPath: string;
+}
+
+const offerComponents = (name: string, offer: OfferAlertContent): TemplateComponents => ({
+  header_1: { type: "image", value: offer.imageUrl },
+  ...buildBodyComponents([
+    toTemplateText(name || "Customer", 60),
+    toTemplateText(offer.title, 200),
+    toTemplateText(offer.details, 600),
+  ]),
+  button_1: { type: "text", value: offer.buttonPath },
+});
+
+/**
+ * Send the kidroo_offer_alert template to many recipients in batches of 500.
+ * "delivered" here means accepted by MSG91 — WhatsApp delivery is asynchronous.
+ */
+export async function sendWhatsAppOfferAlert(
+  recipients: BroadcastRecipient[],
+  offer: OfferAlertContent
+): Promise<BroadcastResult> {
+  const integratedNumber = process.env.MSG91_WA_INTEGRATED_NUMBER as string;
+  const templateName     = process.env.MSG91_WA_TEMPLATE_OFFER ?? "kidroo_offer_alert";
+  const BATCH_SIZE = 500;
+  const result: BroadcastResult = { sent: 0, delivered: 0, failed: 0 };
+
+  for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
+    const batch = recipients.slice(i, i + BATCH_SIZE);
+    const payload = buildPayload(integratedNumber, templateName,
+      batch.map((r) => ({
+        to:         normalisePhone(r.mobile),
+        components: offerComponents(`${r.firstName} ${r.lastName}`.trim(), offer),
+      }))
+    );
+
+    const { ok, data } = await postToMsg91(payload);
+    result.sent += batch.length;
+    if (ok) result.delivered += batch.length;
+    else {
+      result.failed += batch.length;
+      console.error(`[MSG91 Offer] ❌ Batch ${i / BATCH_SIZE + 1} rejected:`, JSON.stringify(data));
+    }
+  }
+
+  console.log(
+    `[MSG91 Offer] "${offer.title}" — Sent: ${result.sent}, Accepted: ${result.delivered}, Failed: ${result.failed}`
+  );
+  return result;
+}
+
+/** Send the kidroo_cart_reminder template to one customer. */
+export async function sendWhatsAppCartReminder(
+  recipient: BroadcastRecipient,
+  message: string
+): Promise<{ ok: boolean; data: any }> {
+  const integratedNumber = process.env.MSG91_WA_INTEGRATED_NUMBER as string;
+  const templateName     = process.env.MSG91_WA_TEMPLATE_CART_REMINDER ?? "kidroo_cart_reminder";
+
+  const payload = buildPayload(integratedNumber, templateName, [
+    {
+      to: normalisePhone(recipient.mobile),
+      components: buildBodyComponents([
+        toTemplateText(recipient.firstName || "Customer", 60),
+        toTemplateText(message, 700),
+      ]),
+    },
+  ]);
+
+  console.log(`[MSG91 Cart] Sending cart_reminder to ${normalisePhone(recipient.mobile)}`);
+  return postToMsg91(payload);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

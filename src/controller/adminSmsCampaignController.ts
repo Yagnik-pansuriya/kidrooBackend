@@ -28,7 +28,7 @@ const startOfMonth = () => {
 };
 
 // ── Group label map ──────────────────────────────────────────────────────────
-const GROUP_LABELS: Record<string, string> = {
+export const GROUP_LABELS: Record<string, string> = {
   all:        "All Customers",
   repeat:     "Repeat Buyers",
   high_value: "VIP Customers",
@@ -41,7 +41,7 @@ const GROUP_LABELS: Record<string, string> = {
 // resolveTargetCustomers
 // Returns { _id, firstName, lastName, mobile } for the target group
 // ─────────────────────────────────────────────────────────────────────────────
-async function resolveTargetCustomers(
+export async function resolveTargetCustomers(
   targetGroup: string,
   targetIds: string[]
 ): Promise<BroadcastRecipient[]> {
@@ -73,14 +73,14 @@ async function resolveTargetCustomers(
       $lookup: {
         from:         "orders",
         localField:   "_id",
-        foreignField: "customerId",
+        foreignField: "customer",
         as:           "orders",
       },
     },
     {
       $addFields: {
         orderCount:     { $size: "$orders" },
-        totalSpent:     { $sum: "$orders.totalAmount" },
+        totalSpent:     { $sum: "$orders.netAmount" },
         lastOrderDate:  { $max: "$orders.createdAt" },
         isNewThisMonth: { $gte: ["$createdAt", monthStart] },
       },
@@ -129,7 +129,7 @@ export const getCampaignStats = asyncHandler(async (_req: Request, res: Response
   const monthStart = startOfMonth();
 
   const [agg] = await SmsCampaign.aggregate([
-    { $match: { status: "sent" } },
+    { $match: { status: { $in: ["sent", "failed"] } } },
     {
       $group: {
         _id:           null,
