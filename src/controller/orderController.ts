@@ -16,6 +16,7 @@ import { asyncHandler } from "../utils/asyncHandler";
 import { sendSuccessResponse } from "../utils/apiResponse";
 import AppError from "../utils/appError";
 import { triggerRealtimeBackup } from "../utils/realtimeBackup";
+import { notifyNewOrder } from "../services/realtimeService";
 
 // ═══════════════════════════════════════════════════════════════
 // CUSTOMER CONTROLLERS
@@ -235,6 +236,9 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
     await couponService.applyCoupon(validatedCoupon.couponId, customerId);
   }
 
+  // Orders awaiting Razorpay payment are announced to admins after verifyPayment
+  if (!razorpayOrderId) notifyNewOrder(order);
+
   // Trigger WhatsApp for COD immediately
   if (paymentMethod === "cod") {
     try {
@@ -296,6 +300,9 @@ export const verifyPayment = asyncHandler(async (req: Request, res: Response) =>
     throw new AppError("Payment verification failed. Invalid signature.", 400);
   }
 
+  // A retried verification must not announce the same order twice
+  const alreadyPaid = await Order.exists({ _id: orderId, paymentStatus: "Paid" });
+
   // Update order status to Paid
   const order = await Order.findByIdAndUpdate(
     orderId,
@@ -310,6 +317,8 @@ export const verifyPayment = asyncHandler(async (req: Request, res: Response) =>
   if (!order) {
     throw new AppError("Order not found during payment verification", 404);
   }
+
+  if (!alreadyPaid) notifyNewOrder(order);
 
   // Send Whatsapp notification
   try {

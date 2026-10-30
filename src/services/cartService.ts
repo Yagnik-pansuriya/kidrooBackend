@@ -2,8 +2,10 @@ import mongoose from "mongoose";
 import Cart, { ICartItem } from "../models/cart";
 import Product from "../models/products";
 import ProductVariant from "../models/variants";
+import Customer from "../models/customer";
 import "../models/categories";
 import AppError from "../utils/appError";
+import { notifyCartAdd } from "./realtimeService";
 
 const MAX_ITEMS = 50;
 const MAX_QTY = 99;
@@ -156,6 +158,12 @@ class CartService {
     const variantProduct = new Map(existingVariants.map((v) => [String(v._id), String(v.product)]));
 
     const existing = await Cart.findOne({ customer: customerId });
+    const previousQty = new Map(
+      (existing?.items || []).map((i) => [
+        itemKey(String(i.product), i.variant ? String(i.variant) : null),
+        i.quantity,
+      ])
+    );
     const previousAddedAt = new Map(
       (existing?.items || []).map((i) => [
         itemKey(String(i.product), i.variant ? String(i.variant) : null),
@@ -184,7 +192,32 @@ class CartService {
       await Cart.create({ customer: customerId, items });
     }
 
-    return this.getCustomerCart(customerId);
+    const cart = await this.getCustomerCart(customerId);
+
+    // New line items or raised quantities count as "added to cart"
+    const added = cart.items
+      .map((i) => ({ ...i, addedQty: i.quantity - (previousQty.get(i.id) || 0) }))
+      .filter((i) => i.addedQty > 0);
+    if (added.length) {
+      Customer.findById(customerId)
+        .select("firstName lastName mobile")
+        .lean()
+        .then((customer) => {
+          if (!customer) return;
+          notifyCartAdd(
+            customer,
+            added.map((i) => ({
+              name: i.variantName ? `${i.name} (${i.variantName})` : i.name,
+              quantity: i.addedQty,
+              price: i.price,
+            })),
+            cart.items.reduce((s, i) => s + i.price * i.quantity, 0)
+          );
+        })
+        .catch((err) => console.error("[Realtime] Cart notification error:", err?.message || err));
+    }
+
+    return cart;
   }
 
   async clearCustomerCart(customerId: string) {
