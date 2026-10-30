@@ -1,3 +1,5 @@
+import AppError from "../utils/appError";
+
 const SHIPROCKET_BASE_URL = "https://apiv2.shiprocket.in/v1/external";
 
 export interface IShiprocketCourier {
@@ -151,7 +153,8 @@ class ShiprocketService {
       throw new Error(`Invalid serviceability data returned: ${JSON.stringify(data)}`);
     } catch (err: any) {
       console.error("[Shiprocket] Serviceability Error:", err.message);
-      throw err;
+      // Surface the upstream reason as a 502 instead of a generic 500 in production
+      throw new AppError(`Shipping service unavailable: ${err.message}`, 502);
     }
   }
 

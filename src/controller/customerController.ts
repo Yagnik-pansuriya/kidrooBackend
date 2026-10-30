@@ -3,6 +3,7 @@ import { asyncHandler } from "../utils/asyncHandler";
 import { sendSuccessResponse } from "../utils/apiResponse";
 import AppError from "../utils/appError";
 import { customerService } from "../services/customerService";
+import { cartService } from "../services/cartService";
 import { triggerRealtimeBackup } from "../utils/realtimeBackup";
 
 // ═══════════════════ PROFILE ═══════════════════
@@ -150,4 +151,41 @@ export const clearWishlist = asyncHandler(async (req: Request, res: Response) =>
   const wishlist = await customerService.clearWishlist(customerId);
 
   return sendSuccessResponse(res, 200, "Wishlist cleared", wishlist);
+});
+
+
+// ═══════════════════ CART ═══════════════════
+
+/**
+ * Get Cart
+ * GET /api/customer/cart
+ */
+export const getCart = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = (req as any).customerId;
+  const cart = await cartService.getCustomerCart(customerId);
+
+  return sendSuccessResponse(res, 200, "Cart fetched successfully", cart);
+});
+
+/**
+ * Sync Cart (replace server cart with the storefront cart)
+ * PUT /api/customer/cart
+ * Body: { items: [{ productId, variantId?, quantity }] }
+ */
+export const syncCart = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = (req as any).customerId;
+  const cart = await cartService.syncCustomerCart(customerId, req.body?.items);
+
+  return sendSuccessResponse(res, 200, "Cart synced successfully", cart);
+});
+
+/**
+ * Clear Cart
+ * DELETE /api/customer/cart
+ */
+export const clearCart = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = (req as any).customerId;
+  await cartService.clearCustomerCart(customerId);
+
+  return sendSuccessResponse(res, 200, "Cart cleared", { items: [] });
 });

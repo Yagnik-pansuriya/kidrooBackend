@@ -9,6 +9,9 @@ import {
   getWishlist,
   toggleWishlist,
   clearWishlist,
+  getCart,
+  syncCart,
+  clearCart,
 } from "../controller/customerController";
 import { customerAuthMiddleware } from "../middlewares/customerAuthMiddleware";
 
@@ -31,5 +34,10 @@ router.patch("/addresses/:addressId/default", setDefaultAddress);
 router.get("/wishlist", getWishlist);
 router.post("/wishlist/:productId", toggleWishlist);
 router.delete("/wishlist", clearWishlist);
+
+// ── Cart ──────────────────────────────────────────────────────
+router.get("/cart", getCart);
+router.put("/cart", syncCart);
+router.delete("/cart", clearCart);
 
 export default router;
