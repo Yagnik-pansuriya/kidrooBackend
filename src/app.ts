@@ -14,6 +14,7 @@ import swaggerRoutes from "./routes/swaggerRoutes";
 import indexRoutes from "./routes/index";
 import sitemapRoutes from "./routes/sitemapRoutes";
 import seoRenderRoutes from "./routes/seoRenderRoutes";
+import { razorpayWebhook } from "./controller/orderController";
 
 const app = express();
 
@@ -103,6 +104,10 @@ app.use(
     maxAge: 86400, // 24 hours
   }),
 );
+
+// Razorpay webhook: signed over the raw request bytes, so it must be mounted
+// before express.json, and it is server-to-server so it skips the rate limiter.
+app.post("/api/webhooks/razorpay", express.raw({ type: "application/json", limit: "1mb" }), razorpayWebhook);
 
 app.use(hpp());
 

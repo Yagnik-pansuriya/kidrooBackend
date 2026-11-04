@@ -274,51 +274,30 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
 });
 
 /**
- * Verify online payment and update order
- * POST /api/customer/orders/verify-payment
+ * Atomically move an online order to Paid and send confirmations.
+ * Both verifyPayment and the Razorpay webhook call this, so the
+ * paymentStatus filter guarantees notifications go out exactly once.
  */
-export const verifyPayment = asyncHandler(async (req: Request, res: Response) => {
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = req.body;
-
-  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !orderId) {
-    throw new AppError("All payment verification parameters are required", 400);
-  }
-
-  // Verify HMAC signature
-  const keySecret = process.env.RAZORPAY_KEY_SECRET;
-  if (!keySecret) {
-    throw new Error("Razorpay secret key is not configured on server.");
-  }
-
-  const hmac = crypto.createHmac("sha256", keySecret);
-  hmac.update(`${razorpay_order_id}|${razorpay_payment_id}`);
-  const generatedSignature = hmac.digest("hex");
-
-  if (generatedSignature !== razorpay_signature) {
-    // Update order status to failed
-    await Order.findByIdAndUpdate(orderId, { paymentStatus: "Failed" });
-    throw new AppError("Payment verification failed. Invalid signature.", 400);
-  }
-
-  // A retried verification must not announce the same order twice
-  const alreadyPaid = await Order.exists({ _id: orderId, paymentStatus: "Paid" });
-
-  // Update order status to Paid
-  const order = await Order.findByIdAndUpdate(
-    orderId,
+const markOrderPaid = async (
+  filter: Record<string, unknown>,
+  razorpayPaymentId: string,
+  razorpaySignature?: string
+) => {
+  const order = await Order.findOneAndUpdate(
+    { ...filter, paymentStatus: { $ne: "Paid" } },
     {
       paymentStatus: "Paid",
-      razorpayPaymentId: razorpay_payment_id,
-      razorpaySignature: razorpay_signature,
+      razorpayPaymentId,
+      ...(razorpaySignature && { razorpaySignature }),
     },
     { new: true }
   );
 
-  if (!order) {
-    throw new AppError("Order not found during payment verification", 404);
-  }
+  // null means the order is missing or was already marked Paid by the other path
+  if (!order) return null;
 
-  if (!alreadyPaid) notifyNewOrder(order);
+  triggerRealtimeBackup("online payment received");
+  notifyNewOrder(order);
 
   // Send Whatsapp notification
   try {
@@ -345,8 +324,99 @@ export const verifyPayment = asyncHandler(async (req: Request, res: Response) =>
     console.error("[WhatsApp] Error sending payment confirmation:", whatsappErr);
   }
 
+  return order;
+};
+
+const hmacMatches = (payload: string | Buffer, secret: string, signature: string) => {
+  const expected = Buffer.from(crypto.createHmac("sha256", secret).update(payload).digest("hex"));
+  const received = Buffer.from(signature);
+  return expected.length === received.length && crypto.timingSafeEqual(expected, received);
+};
+
+/**
+ * Verify online payment and update order
+ * POST /api/customer/orders/verify-payment
+ */
+export const verifyPayment = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = (req as any).customerId;
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = req.body;
+
+  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !orderId) {
+    throw new AppError("All payment verification parameters are required", 400);
+  }
+  if (!mongoose.isValidObjectId(orderId)) {
+    throw new AppError("Invalid order id", 400);
+  }
+
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  if (!keySecret) {
+    throw new Error("Razorpay secret key is not configured on server.");
+  }
+
+  const existing = await Order.findOne({ _id: orderId, customer: customerId });
+  if (!existing) {
+    throw new AppError("Order not found during payment verification", 404);
+  }
+
+  // The signature only proves a payment for razorpay_order_id; it must be this order's
+  if (existing.razorpayOrderId !== razorpay_order_id) {
+    throw new AppError("Payment does not belong to this order.", 400);
+  }
+
+  if (!hmacMatches(`${razorpay_order_id}|${razorpay_payment_id}`, keySecret, String(razorpay_signature))) {
+    await Order.updateOne({ _id: existing._id, paymentStatus: "Pending" }, { paymentStatus: "Failed" });
+    throw new AppError("Payment verification failed. Invalid signature.", 400);
+  }
+
+  // A null result means the webhook already confirmed it; respond with the current order
+  const order =
+    (await markOrderPaid({ _id: existing._id }, razorpay_payment_id, razorpay_signature)) ??
+    (await Order.findById(existing._id));
+
   return sendSuccessResponse(res, 200, "Payment verified successfully", order);
 });
+
+/**
+ * Razorpay server-to-server webhook. Confirms payments even when the
+ * customer's browser never returns to call verifyPayment.
+ * POST /api/webhooks/razorpay (mounted in app.ts with a raw body parser)
+ */
+export const razorpayWebhook = async (req: Request, res: Response) => {
+  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    console.error("[Razorpay webhook] RAZORPAY_WEBHOOK_SECRET is not configured");
+    return res.status(500).json({ success: false });
+  }
+
+  const signature = req.headers["x-razorpay-signature"];
+  if (!Buffer.isBuffer(req.body) || typeof signature !== "string" || !hmacMatches(req.body, webhookSecret, signature)) {
+    return res.status(400).json({ success: false, message: "Invalid signature" });
+  }
+
+  let event: any;
+  try {
+    event = JSON.parse(req.body.toString("utf8"));
+  } catch {
+    return res.status(400).json({ success: false, message: "Invalid payload" });
+  }
+
+  try {
+    if (event.event === "payment.captured" || event.event === "order.paid") {
+      const payment = event.payload?.payment?.entity;
+      if (payment?.order_id && payment?.id) {
+        const order = await markOrderPaid({ razorpayOrderId: payment.order_id }, payment.id);
+        if (order) console.log(`[Razorpay webhook] ${event.event}: order ${order.orderId} marked Paid`);
+      }
+    }
+    // Other events (e.g. payment.failed) are acknowledged without changes: the customer
+    // can still retry inside the same checkout, so a single failed attempt is not final.
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    // A non-2xx makes Razorpay retry the delivery later
+    console.error("[Razorpay webhook] Error processing event:", err);
+    return res.status(500).json({ success: false });
+  }
+};
 
 /**
  * Get logged-in customer's order history
