@@ -11,6 +11,7 @@ import {
   moveProductPosition,
   toggleProductStatus,
   getRelatedProducts,
+  exportProducts,
 } from "../controller/productController";
 import { uploadMultiple } from "../middlewares/upload.middleware";
 import {
@@ -105,6 +106,15 @@ router.get("/filters", getProductFilters);
  *         description: Successfully retrieved list of products
  */
 router.get("/", getAllProducts);
+
+// GET /api/products/export — admin CSV export, must be BEFORE /:id
+router.get(
+  "/export",
+  authMiddleware,
+  authorizationMiddleware(["admin", "moderator"]),
+  checkPermission("/products"),
+  exportProducts
+);
 
 // PUT /api/products/reorder — must be BEFORE /:id
 router.put(

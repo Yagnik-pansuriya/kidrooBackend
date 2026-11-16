@@ -4,6 +4,7 @@ import {
   unsubscribe,
   getAllSubscribers,
   getStats,
+  exportSubscribers,
   removeSubscriber,
 } from "../controller/newsletterController";
 import { authMiddleware, authorizationMiddleware } from "../middlewares/authMiddleware";
@@ -123,6 +124,20 @@ router.get("/", authMiddleware, authorizationMiddleware(["admin", "moderator"]),
  *         description: Stats fetched successfully
  */
 router.get("/stats", authMiddleware, authorizationMiddleware(["admin", "moderator"]), checkPermission("/newsletter"), getStats);
+
+/**
+ * @swagger
+ * /api/newsletter/export:
+ *   get:
+ *     summary: Export subscribers
+ *     description: All subscribers (not paginated) for CSV export. Pass active=true for active only. (Admin only)
+ *     tags:
+ *       - Newsletter
+ *     responses:
+ *       200:
+ *         description: Subscribers exported successfully
+ */
+router.get("/export", authMiddleware, authorizationMiddleware(["admin", "moderator"]), checkPermission("/newsletter"), exportSubscribers);
 
 /**
  * @swagger

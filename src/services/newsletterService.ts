@@ -35,6 +35,14 @@ class NewsletterService {
     };
   }
 
+  /** Every subscriber, newest first — for CSV export */
+  async exportAll(activeOnly = false) {
+    return Newsletter.find(activeOnly ? { isActive: true } : {})
+      .select("email isActive subscribedAt createdAt -_id")
+      .sort({ subscribedAt: -1 })
+      .lean();
+  }
+
   async getStats() {
     const total = await Newsletter.countDocuments();
     const active = await Newsletter.countDocuments({ isActive: true });

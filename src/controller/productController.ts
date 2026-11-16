@@ -12,6 +12,8 @@ import { sendSuccessResponse } from "../utils/apiResponse";
 import { productService } from "../services/productService";
 import mongoose from "mongoose";
 import Product from "../models/products";
+import Order from "../models/order";
+import { parseDateRange } from "../utils/istDate";
 import { slugify } from "../utils/slugify";
 import { triggerSitemapRegeneration } from "../utils/sitemapGenerator";
 import { triggerRealtimeBackup } from "../utils/realtimeBackup";
@@ -44,6 +46,64 @@ export const getAllProducts = asyncHandler(
       "Products fetched successfully",
       products,
     );
+  },
+);
+
+/**
+ * Export all products with units sold & revenue (admin)
+ * GET /api/products/export?from=YYYY-MM-DD&to=YYYY-MM-DD  — sales range; all-time when omitted
+ */
+export const exportProducts = asyncHandler(
+  async (req: Request, res: Response) => {
+    const orderMatch: any = { status: { $ne: "Cancelled" } };
+    const createdAt = parseDateRange(req.query.from, req.query.to);
+    if (createdAt) orderMatch.createdAt = createdAt;
+
+    const [products, sales] = await Promise.all([
+      Product.find({})
+        .select("productName productCode skuCode price originalPrice discountPercentage stock isActive featured newArrival bestSeller ageRange categories ratings numReviews createdAt")
+        .populate("categories", "catagoryName")
+        .sort({ position: 1, createdAt: -1 })
+        .lean(),
+      Order.aggregate([
+        { $match: orderMatch },
+        { $unwind: "$items" },
+        {
+          $group: {
+            _id: "$items.productId",
+            unitsSold: { $sum: "$items.quantity" },
+            revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } },
+          },
+        },
+      ]),
+    ]);
+
+    const salesById = new Map(sales.map((s) => [String(s._id), s]));
+    const rows = products.map((p: any) => {
+      const sale = salesById.get(String(p._id)) || {};
+      return {
+        productName: p.productName,
+        productCode: p.productCode,
+        skuCode: p.skuCode || "",
+        categories: (p.categories || []).map((c: any) => c?.catagoryName).filter(Boolean).join("; "),
+        price: p.price,
+        originalPrice: p.originalPrice,
+        discountPercentage: p.discountPercentage || 0,
+        stock: p.stock,
+        isActive: p.isActive,
+        featured: !!p.featured,
+        newArrival: !!p.newArrival,
+        bestSeller: !!p.bestSeller,
+        ageRange: (p.ageRange || []).join("; "),
+        ratings: p.ratings || 0,
+        numReviews: p.numReviews || 0,
+        unitsSold: sale.unitsSold || 0,
+        revenue: Math.round((sale.revenue || 0) * 100) / 100,
+        createdAt: p.createdAt,
+      };
+    });
+
+    return sendSuccessResponse(res, 200, "Products exported successfully", { products: rows });
   },
 );
 

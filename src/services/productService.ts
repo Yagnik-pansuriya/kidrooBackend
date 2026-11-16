@@ -17,6 +17,7 @@ class ProductService {
       ageRange,
       skill,
       isActive,
+      onSale,
       sort
     } = query;
 
@@ -46,6 +47,7 @@ class ProductService {
     if (newArrival !== undefined) filter.newArrival = newArrival === "true" || newArrival === true;
     if (bestSeller !== undefined) filter.bestSeller = bestSeller === "true" || bestSeller === true;
     if (isActive !== undefined) filter.isActive = isActive === "true" || isActive === true;
+    if (onSale === "true" || onSale === true) filter.discountPercentage = { $gt: 0 };
 
     if (ageRange !== undefined && ageRange !== '') filter.ageRange = { $in: [ageRange] };
     if (skill !== undefined && skill !== '') filter.skills = { $in: [skill] };

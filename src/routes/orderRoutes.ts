@@ -6,6 +6,7 @@ import {
   getMyOrderById,
   getShippingEstimate,
   getAllOrders,
+  exportOrders,
   getAdminOrderById,
   updateOrderStatus,
   adminConfirmOrder,
@@ -31,6 +32,7 @@ const adminRouter = Router();
 adminRouter.use(authMiddleware);
 
 adminRouter.get("/analytics", getAdminDashboardAnalytics);
+adminRouter.get("/export", exportOrders);
 adminRouter.get("/", getAllOrders);
 adminRouter.get("/:id", getAdminOrderById);
 adminRouter.post("/:id/confirm", adminConfirmOrder);

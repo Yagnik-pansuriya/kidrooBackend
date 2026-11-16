@@ -4,6 +4,7 @@ import Customer from "../models/customer";
 import AppError from "../utils/appError";
 import { sendSuccessResponse } from "../utils/apiResponse";
 import { asyncHandler } from "../utils/asyncHandler";
+import { parseDateRange } from "../utils/istDate";
 
 // ═══════════════════════════════════════════════════════════════
 // GET /api/admin/customers/summary
@@ -58,6 +59,80 @@ export const getCustomerSummary = asyncHandler(async (_req: Request, res: Respon
 // Typed params helpers
 interface IdParam { id: string }
 
+const buildCustomerMatch = (search: string, filter: string) => {
+  const matchFilter: Record<string, unknown> = {};
+
+  if (search) {
+    const regex = new RegExp(search, "i");
+    matchFilter.$or = [
+      { firstName: regex },
+      { lastName: regex },
+      { email: regex },
+      { mobile: regex },
+    ];
+  }
+
+  if (filter === "active")    matchFilter.isActive  = true;
+  if (filter === "inactive")  matchFilter.isActive  = false;
+  if (filter === "verified")  matchFilter.isVerified = true;
+  if (filter === "unverified") matchFilter.isVerified = false;
+  return matchFilter;
+};
+
+// ═══════════════════════════════════════════════════════════════
+// GET /api/admin/customers/export
+// Query params: search, filter, from, to (signup date, IST)
+// All matching customers with their real order totals (cancelled orders excluded)
+// ═══════════════════════════════════════════════════════════════
+export const exportCustomers = asyncHandler(async (req: Request, res: Response) => {
+  const { search = "", filter = "all", from, to } = req.query as Record<string, string>;
+
+  const matchFilter = buildCustomerMatch(search, filter);
+  const createdAt = parseDateRange(from, to);
+  if (createdAt) matchFilter.createdAt = createdAt;
+
+  const pipeline: mongoose.PipelineStage[] = [
+    { $match: matchFilter },
+    {
+      $lookup: {
+        from: "orders",
+        let: { cid: "$_id" },
+        pipeline: [
+          { $match: { $expr: { $eq: ["$customer", "$$cid"] }, status: { $ne: "Cancelled" } } },
+          { $group: { _id: null, count: { $sum: 1 }, spent: { $sum: "$netAmount" }, last: { $max: "$createdAt" } } },
+        ],
+        as: "orderStats",
+      },
+    },
+    { $unwind: { path: "$orderStats", preserveNullAndEmptyArrays: true } },
+    {
+      $project: {
+        _id: 0,
+        firstName: 1,
+        lastName: 1,
+        email: 1,
+        mobile: 1,
+        isActive: 1,
+        isVerified: 1,
+        createdAt: 1,
+        lastLogin: 1,
+        city: { $ifNull: [{ $arrayElemAt: ["$addresses.city", 0] }, ""] },
+        state: { $ifNull: [{ $arrayElemAt: ["$addresses.state", 0] }, ""] },
+        totalOrders: { $ifNull: ["$orderStats.count", 0] },
+        totalSpent: { $round: [{ $ifNull: ["$orderStats.spent", 0] }, 2] },
+        lastOrderDate: "$orderStats.last",
+      },
+    },
+  ];
+
+  if (filter === "repeat") pipeline.push({ $match: { totalOrders: { $gte: 2 } } });
+  if (filter === "high_value") pipeline.push({ $match: { totalSpent: { $gte: 1000 } } });
+  pipeline.push({ $sort: { createdAt: -1 } });
+
+  const customers = await Customer.aggregate(pipeline);
+  return sendSuccessResponse(res, 200, "Customers exported successfully", { customers });
+});
+
 // ═══════════════════════════════════════════════════════════════
 // GET /api/admin/customers
 // Query params: search, filter, sort, page, limit
@@ -76,22 +151,7 @@ export const getAllCustomers = asyncHandler(async (req: Request, res: Response) 
   const skip = (pageNum - 1) * limitNum;
 
   // ── Build match filter ─────────────────────────────────────
-  const matchFilter: Record<string, unknown> = {};
-
-  if (search) {
-    const regex = new RegExp(search, "i");
-    matchFilter.$or = [
-      { firstName: regex },
-      { lastName: regex },
-      { email: regex },
-      { mobile: regex },
-    ];
-  }
-
-  if (filter === "active")    matchFilter.isActive  = true;
-  if (filter === "inactive")  matchFilter.isActive  = false;
-  if (filter === "verified")  matchFilter.isVerified = true;
-  if (filter === "unverified") matchFilter.isVerified = false;
+  const matchFilter = buildCustomerMatch(search, filter);
 
   // ── Build sort ─────────────────────────────────────────────
   const sortMap: Record<string, Record<string, 1 | -1>> = {

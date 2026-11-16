@@ -26,6 +26,15 @@ export const getAllSubscribers = asyncHandler(async (req: Request, res: Response
 });
 
 /**
+ * GET /api/newsletter/export?active=true
+ * Admin — all subscribers (unpaginated) for CSV export
+ */
+export const exportSubscribers = asyncHandler(async (req: Request, res: Response) => {
+  const subscribers = await newsletterService.exportAll(req.query.active === "true");
+  return sendSuccessResponse(res, 200, "Subscribers exported", { subscribers });
+});
+
+/**
  * GET /api/newsletter/stats
  * Admin — subscriber statistics
  */

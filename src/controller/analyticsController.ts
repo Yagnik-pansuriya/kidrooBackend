@@ -10,14 +10,23 @@ import Customer from "../models/customer";
 import Category from "../models/categories";
 import { asyncHandler } from "../utils/asyncHandler";
 import { sendSuccessResponse } from "../utils/apiResponse";
+import AppError from "../utils/appError";
 
 /**
  * Get Management Analytics for Admin Dashboard
- * GET /api/orders/analytics?timeframe=weekly|monthly|yearly
+ * GET /api/orders/analytics?timeframe=weekly|monthly|yearly  or  ?from=YYYY-MM-DD&to=YYYY-MM-DD
  */
 export const getAdminDashboardAnalytics = asyncHandler(async (req: Request, res: Response) => {
-  const timeframe = (req.query.timeframe as string) || "monthly";
   const now = new Date();
+
+  // Custom range: ?from=YYYY-MM-DD&to=YYYY-MM-DD (IST, inclusive) overrides the preset timeframe
+  const customFrom = parseOfferDate(req.query.from, "start");
+  const customTo = parseOfferDate(req.query.to, "end");
+  if ((req.query.from || req.query.to) && (!customFrom || !customTo || customFrom > customTo)) {
+    throw new AppError("Invalid date range", 400);
+  }
+  const isCustom = !!(customFrom && customTo);
+  const timeframe = isCustom ? "custom" : (req.query.timeframe as string) || "monthly";
 
   let startDate = new Date();
   if (timeframe === "weekly") {
@@ -31,7 +40,7 @@ export const getAdminDashboardAnalytics = asyncHandler(async (req: Request, res:
   startDate.setHours(0, 0, 0, 0);
 
   const activeOrdersFilter = {
-    createdAt: { $gte: startDate },
+    createdAt: isCustom ? { $gte: customFrom!, $lte: customTo! } : { $gte: startDate },
     status: { $ne: "Cancelled" },
   };
 
@@ -83,7 +92,43 @@ export const getAdminDashboardAnalytics = asyncHandler(async (req: Request, res:
   // 2. Trend Chart Data (Time-series)
   let trendData: { label: string; dateStr: string; revenue: number; orders: number }[] = [];
 
-  if (timeframe === "yearly") {
+  if (isCustom) {
+    // Daily buckets for ranges up to ~2 months, monthly beyond that — all in store time (IST)
+    const fromKey = istDayKey(customFrom!);
+    const toKey = istDayKey(customTo!);
+    const spanDays = Math.round((Date.parse(toKey) - Date.parse(fromKey)) / 86400000) + 1;
+    const monthly = spanDays > 62;
+    const rawTrend = await Order.aggregate([
+      { $match: activeOrdersFilter },
+      {
+        $group: {
+          _id: { $dateToString: { format: monthly ? "%Y-%m" : "%Y-%m-%d", date: "$createdAt", timezone: STORE_TZ } },
+          revenue: { $sum: "$netAmount" },
+          orders: { $sum: 1 },
+        },
+      },
+    ]);
+    const trendMap = new Map(rawTrend.map((t) => [t._id, t]));
+
+    // Walk calendar days/months as UTC dates so keys match the IST day strings
+    const cursor = new Date(`${fromKey}T00:00:00Z`);
+    const last = new Date(`${toKey}T00:00:00Z`);
+    if (monthly) cursor.setUTCDate(1);
+    while (cursor <= last) {
+      const key = monthly ? cursor.toISOString().slice(0, 7) : cursor.toISOString().slice(0, 10);
+      const found: any = trendMap.get(key) || {};
+      trendData.push({
+        label: cursor.toLocaleDateString("en-IN", monthly
+          ? { month: "short", year: "2-digit", timeZone: "UTC" }
+          : { day: "numeric", month: "short", timeZone: "UTC" }),
+        dateStr: key,
+        revenue: round2(found.revenue),
+        orders: found.orders || 0,
+      });
+      if (monthly) cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+      else cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+  } else if (timeframe === "yearly") {
     // Group by Year-Month
     const rawTrend = await Order.aggregate([
       { $match: activeOrdersFilter },
@@ -326,6 +371,7 @@ export const getAdminDashboardAnalytics = asyncHandler(async (req: Request, res:
 
   return sendSuccessResponse(res, 200, "Dashboard analytics fetched successfully", {
     timeframe,
+    range: isCustom ? { from: istDayKey(customFrom!), to: istDayKey(customTo!) } : null,
     summary,
     trendData,
     categoryBreakdown,

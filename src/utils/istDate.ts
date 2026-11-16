@@ -25,3 +25,17 @@ export const parseOfferDate = (value: unknown, edge: "start" | "end"): Date | nu
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? null : d;
 };
+
+/**
+ * Admin report range from `?from=YYYY-MM-DD&to=YYYY-MM-DD` (IST, both days inclusive).
+ * Returns a Mongo `createdAt` condition, or null when neither bound is given.
+ */
+export const parseDateRange = (from: unknown, to: unknown) => {
+  const start = parseOfferDate(from, "start");
+  const end = parseOfferDate(to, "end");
+  if (!start && !end) return null;
+  const range: { $gte?: Date; $lte?: Date } = {};
+  if (start) range.$gte = start;
+  if (end) range.$lte = end;
+  return range;
+};

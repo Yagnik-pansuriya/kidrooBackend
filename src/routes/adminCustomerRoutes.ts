@@ -4,6 +4,7 @@ import {
   getCustomerById,
   toggleCustomerStatus,
   getCustomerSummary,
+  exportCustomers,
 } from "../controller/adminCustomerController";
 import { authMiddleware, authorizationMiddleware } from "../middlewares/authMiddleware";
 
@@ -14,6 +15,9 @@ router.use(authMiddleware, authorizationMiddleware(["admin"]));
 
 // GET /api/admin/customers/summary  (must be before /:id)
 router.get("/summary", getCustomerSummary);
+
+// GET /api/admin/customers/export  (must be before /:id)
+router.get("/export", exportCustomers);
 
 // GET /api/admin/customers
 router.get("/", getAllCustomers);

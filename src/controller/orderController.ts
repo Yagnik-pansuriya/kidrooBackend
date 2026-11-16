@@ -15,6 +15,7 @@ import { getRazorpayInstance } from "../config/razorpay";
 import { asyncHandler } from "../utils/asyncHandler";
 import { sendSuccessResponse } from "../utils/apiResponse";
 import AppError from "../utils/appError";
+import { parseDateRange } from "../utils/istDate";
 import { triggerRealtimeBackup } from "../utils/realtimeBackup";
 import { notifyNewOrder } from "../services/realtimeService";
 
@@ -461,13 +462,16 @@ export const getMyOrderById = asyncHandler(async (req: Request, res: Response) =
  * Get all orders for Admin dashboard
  * GET /api/orders
  */
-export const getAllOrders = asyncHandler(async (req: Request, res: Response) => {
-  const { status, paymentStatus, paymentMethod, search, page = "1", limit = "10" } = req.query;
+const buildAdminOrderFilter = (query: Request["query"]) => {
+  const { status, paymentStatus, paymentMethod, search, from, to } = query;
 
   const filter: any = {};
   if (status) filter.status = status;
   if (paymentStatus) filter.paymentStatus = paymentStatus;
   if (paymentMethod) filter.paymentMethod = paymentMethod;
+
+  const createdAt = parseDateRange(from, to);
+  if (createdAt) filter.createdAt = createdAt;
 
   // Search by orderId or shippingAddress full name
   if (search && (search as string).trim()) {
@@ -478,6 +482,12 @@ export const getAllOrders = asyncHandler(async (req: Request, res: Response) => 
       { "shippingAddress.phone": new RegExp(s, "i") },
     ];
   }
+  return filter;
+};
+
+export const getAllOrders = asyncHandler(async (req: Request, res: Response) => {
+  const { page = "1", limit = "10" } = req.query;
+  const filter = buildAdminOrderFilter(req.query);
 
   const pageNum = parseInt(page as string, 10);
   const limitNum = parseInt(limit as string, 10);
@@ -499,6 +509,47 @@ export const getAllOrders = asyncHandler(async (req: Request, res: Response) => 
       pages: Math.ceil(total / limitNum),
     },
   });
+});
+
+/**
+ * Export orders for accounting (all matching rows, one per order)
+ * GET /api/orders/export?from=YYYY-MM-DD&to=YYYY-MM-DD&status=&paymentStatus=&paymentMethod=&search=
+ */
+export const exportOrders = asyncHandler(async (req: Request, res: Response) => {
+  const orders = await Order.find(buildAdminOrderFilter(req.query))
+    .populate("customer", "firstName lastName email mobile")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const rows = orders.map((o: any) => {
+    const addr = o.shippingAddress || {};
+    const cust = o.customer || {};
+    return {
+      orderId: o.orderId,
+      date: o.createdAt,
+      status: o.status,
+      paymentMethod: o.paymentMethod,
+      paymentStatus: o.paymentStatus,
+      razorpayPaymentId: o.razorpayPaymentId || "",
+      customerName: addr.fullName || [cust.firstName, cust.lastName].filter(Boolean).join(" "),
+      customerEmail: cust.email || "",
+      customerPhone: addr.phone || cust.mobile || "",
+      city: addr.city || "",
+      state: addr.state || "",
+      zipCode: addr.zipCode || "",
+      items: (o.items || []).map((i: any) => `${i.productName} x${i.quantity}`).join("; "),
+      itemCount: (o.items || []).reduce((n: number, i: any) => n + (i.quantity || 0), 0),
+      itemsTotal: o.totalItemsPrice,
+      shipping: o.shippingCharges,
+      couponCode: o.couponCode || "",
+      couponDiscount: o.couponDiscount || 0,
+      netAmount: o.netAmount,
+      awb: o.shiprocketAwbNumber || "",
+      courier: o.shiprocketCourierCompany || "",
+    };
+  });
+
+  return sendSuccessResponse(res, 200, "Orders exported successfully", { orders: rows });
 });
 
 /**
