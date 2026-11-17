@@ -6,6 +6,7 @@ import Product from "../models/products";
 import Category from "../models/categories";
 import Offer from "../models/offers";
 import Coupon from "../models/coupon";
+import { findPrimaryVariant } from "../utils/productFamily";
 
 /**
  * Server-side SEO rendering for the React SPA.
@@ -625,11 +626,13 @@ const buildProduct = async (slug: string): Promise<SeoPage> => {
     .lean();
   if (!product) return notFoundPage(`/product/${slug}`);
 
-  const canonical = productUrl(product);
+  const selfUrl = productUrl(product);
   // Old /product/<mongoId> links → permanent redirect to the slug URL
   if (product.slug && slug !== product.slug) {
-    return { ...notFoundPage(""), status: 301, redirect: canonical };
+    return { ...notFoundPage(""), status: 301, redirect: selfUrl };
   }
+  // Colour/size variants are near-duplicates — point them all at one primary page
+  const canonical = productUrl(await findPrimaryVariant(product));
 
   const name = String(product.productName || "").trim();
   const images = productImages(product);
@@ -651,7 +654,7 @@ const buildProduct = async (slug: string): Promise<SeoPage> => {
   const crumbs = [
     { name: "Home", url: `${SITE_URL}/` },
     ...(category ? [{ name: categoryName(category), url: categoryUrl(category) }] : [{ name: "Shop", url: `${SITE_URL}/shop` }]),
-    { name: shortProductTitle(name), url: canonical },
+    { name: shortProductTitle(name), url: selfUrl },
   ];
 
   const related = category
@@ -661,18 +664,18 @@ const buildProduct = async (slug: string): Promise<SeoPage> => {
   const ages: string[] = Array.isArray(product.ageRange) ? product.ageRange : [];
   const productLd: any = {
     "@type": "Product",
-    "@id": `${canonical}#product`,
+    "@id": `${selfUrl}#product`,
     name,
     description: truncate(plainDescription || name, 5000),
     image: images,
-    url: canonical,
+    url: selfUrl,
     sku: product.skuCode || product.productCode,
     mpn: product.productCode,
     brand: { "@type": "Brand", name: SITE_NAME },
     ...(category && { category: categoryName(category) }),
     offers: {
       "@type": "Offer",
-      url: canonical,
+      url: selfUrl,
       priceCurrency: "INR",
       price: Number(product.price).toFixed(2),
       itemCondition: "https://schema.org/NewCondition",

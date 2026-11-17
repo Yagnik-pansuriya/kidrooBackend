@@ -3,6 +3,7 @@ import fs from "fs";
 import Product from "../models/products";
 import Category from "../models/categories";
 import { slugify } from "./slugify";
+import { onlyPrimaryVariants } from "./productFamily";
 import { clearSeoRenderCache } from "../routes/seoRenderRoutes";
 
 const escapeXml = (str: string): string => {
@@ -30,7 +31,7 @@ export const generateSitemapXml = async (): Promise<string> => {
   const baseUrl = getSitemapBaseUrl();
 
   const products = await Product.find({ isActive: true })
-    .select("productName slug image images updatedAt _id")
+    .select("productName slug productCode position image images updatedAt _id")
     .sort({ position: 1 })
     .lean();
 
@@ -80,7 +81,7 @@ export const generateSitemapXml = async (): Promise<string> => {
   }
 
   // Product pages (slug-based URLs + multi-image Google SEO)
-  for (const product of products) {
+  for (const product of onlyPrimaryVariants(products)) {
     const prodObj = product as any;
     const prodName = prodObj.productName || "Product";
     const prodSlug = prodObj.slug || slugify(prodName) || prodObj._id;

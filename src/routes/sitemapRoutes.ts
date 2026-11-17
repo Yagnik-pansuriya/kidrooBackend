@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import Product from "../models/products";
 import Category from "../models/categories";
 import { slugify } from "../utils/slugify";
+import { onlyPrimaryVariants } from "../utils/productFamily";
 
 const router = Router();
 
@@ -40,7 +41,7 @@ router.get("/", async (req: Request, res: Response) => {
     const baseUrl = getDynamicBaseUrl(req);
 
     const products = await Product.find({ isActive: true })
-      .select("productName slug image images updatedAt _id")
+      .select("productName slug productCode position image images updatedAt _id")
       .sort({ position: 1 })
       .lean();
 
@@ -90,7 +91,7 @@ router.get("/", async (req: Request, res: Response) => {
     }
 
     // Product pages (slug-based URLs + multi-image Google SEO)
-    for (const product of products) {
+    for (const product of onlyPrimaryVariants(products)) {
       const prodObj = product as any;
       const prodName = prodObj.productName || "Product";
       const prodSlug = prodObj.slug || slugify(prodName) || prodObj._id;
