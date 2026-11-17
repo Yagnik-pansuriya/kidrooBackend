@@ -204,6 +204,11 @@ app.get("/", (req, res) => {
 });
 
 app.use("/sitemap.xml", sitemapRoutes);
+// robots.txt lets crawlers fetch /api so Googlebot can render the SPA; keep the JSON itself out of the index
+app.use("/api", (req, res, next) => {
+  res.set("X-Robots-Tag", "noindex");
+  next();
+});
 app.use("/api", indexRoutes);
 
 app.use("/docs", swaggerRoutes);
